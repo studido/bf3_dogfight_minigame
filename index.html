@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dogfight 313 — v0.1 prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=0.1.20">
+  <link rel="stylesheet" href="css/style.css?v=0.1.22">
 </head>
 <body>
   <canvas id="gl"></canvas>
@@ -19,6 +19,7 @@
           <label>Enemies <select id="opt-enemies"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></label>
           <label>Wingmen <select id="opt-wing"><option>0</option><option selected>1</option><option>2</option></select></label>
           <label>Countermeasure <select id="opt-loadout"><option value="flares">Flares</option><option value="ecm">ECM jammer</option></select></label>
+<label>AI difficulty <select id="opt-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="opt-aimsl" type="checkbox" checked> AI uses missiles</label>
           <label>AI ECM jammer <select id="opt-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
           <label>Chase camera <select id="opt-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
@@ -44,6 +45,7 @@
       <div class="card wide">
         <h2>PAUSED</h2>
         <div class="grid">
+<label>AI difficulty <select id="p-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="p-aimsl" type="checkbox"> AI uses missiles</label>
           <label>AI ECM jammer <select id="p-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
           <label>Chase camera <select id="p-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
@@ -65,21 +67,21 @@
 
   <!-- Three.js r128 (classic build so the game runs straight from disk) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="js/config.js?v=0.1.20"></script>
-  <script src="js/util.js?v=0.1.20"></script>
-  <script src="js/input.js?v=0.1.20"></script>
-  <script src="js/terrain.js?v=0.1.20"></script>
-  <script src="js/sim.js?v=0.1.20"></script>
-  <script src="js/ai.js?v=0.1.20"></script>
-  <script src="js/city.js?v=0.1.20"></script>
-  <script src="js/world.js?v=0.1.20"></script>
-  <script src="js/jet-model.js?v=0.1.20"></script>
-  <script src="js/cockpit.js?v=0.1.20"></script>
-  <script src="js/rollcam.js?v=0.1.20"></script>
-  <script src="js/effects.js?v=0.1.20"></script>
-  <script src="js/hud.js?v=0.1.20"></script>
-  <script src="js/audio.js?v=0.1.20"></script>
-  <script src="js/tuning-panel.js?v=0.1.20"></script>
-  <script src="js/main.js?v=0.1.20"></script>
+  <script src="js/config.js?v=0.1.22"></script>
+  <script src="js/util.js?v=0.1.22"></script>
+  <script src="js/input.js?v=0.1.22"></script>
+  <script src="js/terrain.js?v=0.1.22"></script>
+  <script src="js/sim.js?v=0.1.22"></script>
+  <script src="js/ai.js?v=0.1.22"></script>
+  <script src="js/city.js?v=0.1.22"></script>
+  <script src="js/world.js?v=0.1.22"></script>
+  <script src="js/jet-model.js?v=0.1.22"></script>
+  <script src="js/cockpit.js?v=0.1.22"></script>
+  <script src="js/rollcam.js?v=0.1.22"></script>
+  <script src="js/effects.js?v=0.1.22"></script>
+  <script src="js/hud.js?v=0.1.22"></script>
+  <script src="js/audio.js?v=0.1.22"></script>
+  <script src="js/tuning-panel.js?v=0.1.22"></script>
+  <script src="js/main.js?v=0.1.22"></script>
 </body>
 </html>

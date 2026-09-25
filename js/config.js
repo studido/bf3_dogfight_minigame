@@ -4,7 +4,7 @@
 window.BF = window.BF || {};
 // Build number: shown on the start screen. index.html loads every script with ?v=<build> so the
 // browser can't keep running stale cached files after an update (bump both together).
-BF.BUILD = '0.1.20';
+BF.BUILD = '0.1.22';
 
 BF.DEFAULT_CONFIG = {
   flight: {
@@ -100,6 +100,7 @@ BF.DEFAULT_CONFIG = {
     flareChance: 0.8,
     fireCone: 3.5,           // deg, cannon fires when target within
     skill: 0.8,              // 0..1 speed discipline around 313
+    difficulty: 'medium',    // menu: veryEasy / easy / medium / hard (sets the AI values here, see ai.js)
     useMissiles: true,       // menu toggle: AI guns-only for testing
     ecmMode: 'off',          // menu: 'off' (mixed flares/ECM, react to missiles), 'threat' (all ECM, jam when
                              // being locked), 'spam' (all ECM, jam whenever ready, 6 s cooldown: testing)

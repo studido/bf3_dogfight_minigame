@@ -36,6 +36,7 @@
   if (opts.wing != null) $('opt-wing').value = opts.wing;
   if (opts.loadout) $('opt-loadout').value = opts.loadout;
   if (opts.aiMissiles === false) $('opt-aimsl').checked = false;
+  if (opts.aiDiff) $('opt-aidiff').value = opts.aiDiff;
   if (opts.aiEcm) $('opt-aiecm').value = opts.aiEcm === true ? 'threat' : opts.aiEcm;
   if (opts.camStyle) $('opt-camstyle').value = opts.camStyle;
   cfg.camera.style = $('opt-camstyle').value;
@@ -50,7 +51,8 @@
     sim = new BF.Sim(cfg, seed);
     world = BF.buildWorld(scene, sim.terrain, cfg);
     effects = new BF.Effects(scene);
-    const o = { name: $('opt-name').value.trim() || 'Pilot', enemies: +$('opt-enemies').value, wing: +$('opt-wing').value, loadout: $('opt-loadout').value, aiMissiles: $('opt-aimsl').checked, aiEcm: $('opt-aiecm').value, camStyle: $('opt-camstyle').value };
+    const o = { name: $('opt-name').value.trim() || 'Pilot', enemies: +$('opt-enemies').value, wing: +$('opt-wing').value, loadout: $('opt-loadout').value, aiMissiles: $('opt-aimsl').checked, aiEcm: $('opt-aiecm').value, camStyle: $('opt-camstyle').value, aiDiff: $('opt-aidiff').value };
+    BF.applyAiDifficulty(cfg, o.aiDiff);
     cfg.camera.style = o.camStyle;
     cfg.ai.useMissiles = o.aiMissiles; cfg.ai.ecmMode = o.aiEcm;
     // Merge, so menu-only options (e.g. the speed/altitude HUD toggle) aren't wiped
@@ -63,7 +65,7 @@
     for (const j of sim.jets) { const m = BF.buildJetModel(j.team); scene.add(m); models.set(j.id, m); j.prevPos = j.pos.clone(); j.prevQuat = j.quat.clone(); }
     sim.events.length = 0;
     camQ.copy(me.quat); camPos.copy(me.pos);
-    $('p-loadout').value = me.loadout; $('p-aimsl').checked = cfg.ai.useMissiles; $('p-aiecm').value = cfg.ai.ecmMode || 'off'; $('p-camstyle').value = cfg.camera.style;
+    $('p-loadout').value = me.loadout; $('p-aimsl').checked = cfg.ai.useMissiles; $('p-aidiff').value = cfg.ai.difficulty || 'medium'; $('p-aiecm').value = cfg.ai.ecmMode || 'off'; $('p-camstyle').value = cfg.camera.style;
   }
 
   // AI countermeasures: ECM mode gives every AI the jammer; otherwise enemies alternate
@@ -118,6 +120,10 @@
   $('p-flighthud').onchange = (e) => {
     showFlightHud = e.target.checked;
     try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.flightHud = showFlightHud; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
+  };
+  $('p-aidiff').onchange = (e) => {
+    BF.applyAiDifficulty(cfg, e.target.value); $('opt-aidiff').value = e.target.value;
+    try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.aiDiff = e.target.value; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
   };
   $('p-vol').value = audio.volume; $('p-vol').oninput = (e) => audio.setVolume(+e.target.value);
   $('resetbinds').onclick = () => { input.binds = BF.cloneConfig(BF.DEFAULT_BINDS); input.save(); renderBinds(); };

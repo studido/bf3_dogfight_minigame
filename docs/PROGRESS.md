@@ -252,6 +252,43 @@ browser with WebGL, so the first real render happens on the user's machine.
 - Pause-menu toggle "Speed & altitude HUD" (saved). Starting a match now merges saved menu
   options instead of overwriting them. Build 0.1.20.
 
+## v0.1.21: AI difficulty
+- "AI difficulty" on the start screen and pause menu: Very easy / Easy / Medium / Hard.
+  Medium is exactly the previous AI. Presets live in `BF.AI_LEVELS` (ai.js) and cover aim
+  error, fire cone, reaction time, flare chance, evade and flare range, break-turn strength,
+  speed "sloppiness" (zoning out) and speed controller.
+- Hard adds a feathering speed controller (error + 0.8 s × rate of change, partial brake,
+  AB taps, small wandering target error), energy-keeping break direction, and defensive
+  breaks when someone behind is past 30 % lock.
+- Measured (3-min 5-jet furball, and 30 single-missile shots from 1.1 km per level):
+
+  | Level | Hard-turning time in 300–320 | Gold 310–316 | Over 330 | Missiles that hit |
+  |---|---|---|---|---|
+  | Very easy | 13 % | 3 % | 54 % | 25 / 30 |
+  | Easy | 13 % | 4 % | 35 % | 8 / 30 |
+  | Medium | 17 % | 4 % | 2 % | 1 / 30 |
+  | Hard | 75 % | 36 % | 9 % | 0 / 30 |
+
+## v0.1.22: difficulty spread
+- The old Hard became **Extremely hard**. The new **Hard** uses the feathering speed controller
+  with a larger wandering target error (±7), a 3-unit deadband, less anticipation (0.5 s) and
+  28 % zone-outs. It has no pre-emptive defensive breaks, slightly worse aim and reactions,
+  and 88 % flare chance.
+- The v0.1.21 "300–320" column was misleading. Medium rides the 299/321 band edges, so
+  it's close to 313 most of the time but rarely inside a narrow window. Re-measured by
+  average distance from 313 while hard turning:
+
+  | Level | Avg miss from 313 | Within ±10 | Gold 310–316 |
+  |---|---|---|---|
+  | Very easy | 31.8 | 13 % | 3 % |
+  | Easy | 21.8 | 13 % | 4 % |
+  | Medium | 11.5 | 47 % | 4 % |
+  | Hard | 11.7 | 67 % | 26 % |
+  | Extremely hard | 9.4 | 75 % | 36 % |
+
+- The single/paired-missile test saturates from Medium up (Medium 1/30 hits, Hard and Extremely
+  hard 0/30). Lone missiles vs flares are too easy to dodge to separate them.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

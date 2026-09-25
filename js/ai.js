@@ -6,6 +6,26 @@ window.BF = window.BF || {};
   const V3 = THREE.Vector3;
   const inv = new THREE.Quaternion(), local = new V3(), desired = new V3(), tmp = new V3();
 
+  // Difficulty presets. "medium" is exactly the AI as it was before difficulty existed.
+  //   evadeRange: missile distance at which they start evading
+  //   flareRange: furthest a missile can be when they pop flares/ECM
+  //   breakTurn:  how hard they turn away from a missile (0 = keeps attacking, 1 = full break)
+  //   sloppy:     chance of zoning out on speed control for a few seconds at a time
+  //   speedMode:  'bang' = brake/boost at the band edges; 'pd' = feathers toward 313 and
+  //               anticipates climbs/dives (hard)
+  //   defensive:  breaks when someone behind is getting a lock, before any missile is fired
+  BF.AI_LEVELS = {
+    veryEasy: { aimError: 4.0, fireCone: 2.5, skill: 0.2, reactionTime: 1.3, flareChance: 0.35, evadeRange: 450, flareRange: 350, breakTurn: 0, sloppy: 0.5, speedMode: 'bang', defensive: false },
+    easy:     { aimError: 2.6, fireCone: 3.0, skill: 0.5, reactionTime: 0.8, flareChance: 0.6, evadeRange: 750, flareRange: 550, breakTurn: 0.6, sloppy: 0.2, speedMode: 'bang', defensive: false },
+    medium:   { aimError: 1.6, fireCone: 3.5, skill: 0.8, reactionTime: 0.45, flareChance: 0.8, evadeRange: 1000, flareRange: 650, breakTurn: 1, sloppy: 0, speedMode: 'bang', defensive: false },
+    hard:     { aimError: 1.3, fireCone: 3.7, skill: 0.9, reactionTime: 0.32, flareChance: 0.88, evadeRange: 1150, flareRange: 650, breakTurn: 1, speedMode: 'pd', pdNoise: 14, pdDeadband: 3, pdLead: 0.5, sloppy: 0.28, smartBreak: true, defensive: false },
+    extreme:  { aimError: 1.0, fireCone: 4.0, skill: 0.95, reactionTime: 0.22, flareChance: 0.96, evadeRange: 1400, flareRange: 700, breakTurn: 1, sloppy: 0, speedMode: 'pd', pdNoise: 6, pdDeadband: 1.5, pdLead: 0.8, smartBreak: true, defensive: true },
+  };
+  BF.applyAiDifficulty = (cfg, level) => {
+    const p = BF.AI_LEVELS[level] || BF.AI_LEVELS.medium;
+    Object.assign(cfg.ai, p, { difficulty: BF.AI_LEVELS[level] ? level : 'medium' });
+  };
+
   BF.AIPilot = class {
     constructor(sim, jet) {
       this.sim = sim; this.jet = jet; this.targetId = null; this.retargetT = 0;
@@ -59,17 +79,36 @@ window.BF = window.BF || {};
 
       // Missile evasion
       const th = sim.threatsTo(j);
-      if (th.incoming.length && th.nearestMissile < 1000) {
+      const evadeRange = A.evadeRange ?? 1000, flareRange = A.flareRange ?? 650, breakTurn = A.breakTurn ?? 1;
+      if (th.incoming.length && th.nearestMissile < evadeRange) {
         this.reactT += dt;
-        if (this.reactT > A.reactionTime && sim.t >= j.counterReadyT && th.nearestMissile < 650) {
+        if (this.reactT > A.reactionTime && sim.t >= j.counterReadyT && th.nearestMissile < flareRange) {
           if (sim.rand() < A.flareChance) c.counter = true; else j.counterReadyT = sim.t + 1.5; // "missed" the tone
         }
         // Break turn perpendicular to the closest missile
         const m = th.incoming.reduce((a, b) => (a.pos.distanceTo(j.pos) < b.pos.distanceTo(j.pos) ? a : b));
         tmp.subVectors(j.pos, m.pos).normalize();
-        desired.crossVectors(tmp, new V3(0, 1, 0)).normalize().multiplyScalar(this.jinkDir).addScaledVector(tmp, 0.3).normalize();
-        mode = 'evade';
+        const brk = new V3().crossVectors(tmp, new V3(0, 1, 0)).normalize();
+        // Hard: break toward whichever side is closer to the current heading (keeps energy)
+        if (A.smartBreak) this.jinkDir = brk.dot(fwd) >= 0 ? 1 : -1;
+        brk.multiplyScalar(this.jinkDir).addScaledVector(tmp, 0.3).normalize();
+        if (breakTurn >= 1) desired.copy(brk);
+        else if (breakTurn > 0) desired.lerp(brk, breakTurn).normalize();
+        if (breakTurn > 0) mode = 'evade';
       } else { this.reactT = 0; if (sim.rand() < dt * 0.3) this.jinkDir *= -1; }
+
+      // Hard: defensive break when someone behind is building a lock, before they fire
+      if (A.defensive && mode !== 'evade') {
+        for (const o of sim.jets) {
+          if (!o.alive || o.team === j.team || o.lock.targetId !== j.id) continue;
+          tmp.subVectors(o.pos, j.pos); const d = tmp.length();
+          if (d < 1500 && o.lock.t / sim.cfg.weapons.missileLockTime > 0.3 && tmp.dot(fwd) < 0) {
+            const brk = new V3().crossVectors(tmp.normalize(), new V3(0, 1, 0)).normalize();
+            desired.copy(brk.dot(fwd) >= 0 ? brk : brk.negate()).addScaledVector(fwd, 0.2).normalize();
+            mode = 'evade'; break;
+          }
+        }
+      }
 
       // ECM mode: jam proactively as soon as someone is getting a lock (ECM breaks
       // locks and blocks new ones), not just when a missile is already close.
@@ -119,7 +158,23 @@ window.BF = window.BF || {};
 
       // Speed discipline: ride 313 in turn fights
       const s = j.speed, turning = angleOff > 20 * BF.DEG || mode === 'evade';
+      // Sloppy pilots zone out on speed control for a few seconds at a time
+      this.lapseT = (this.lapseT ?? 0) - dt;
+      if (this.lapseT <= 0) { this.lapsing = sim.rand() < (A.sloppy || 0); this.lapseT = this.lapsing ? 2 + sim.rand() * 2 : 3; }
+      // Hard: speed derivative (smoothed) for the anticipating controller
+      if (this.prevSpeed != null) this.dvF = BF.damp(this.dvF || 0, (s - this.prevSpeed) / Math.max(dt, 1e-3), 8, dt);
+      this.prevSpeed = s;
       if (mode === 'pullup') { c.throttleUp = 1; if (s < 300) c.boost = 1; }
+      else if (this.lapsing) { /* not managing speed right now */ }
+      else if (turning && A.speedMode === 'pd') {
+        // Aim at 313 (with a slowly wandering small error, so it isn't perfect) and act on
+        // where speed is heading: u = error + 0.8 s x rate of change.
+        this.spdNoiseT = (this.spdNoiseT ?? 0) - dt;
+        if (this.spdNoiseT <= 0) { this.spdNoise = (sim.rand() - 0.5) * (A.pdNoise ?? 6); this.spdNoiseT = 1.5; }
+        const u = (s - 313 - this.spdNoise) + (A.pdLead ?? 0.8) * (this.dvF || 0), db = A.pdDeadband ?? 1.5;
+        if (u > db) c.brake = BF.clamp(u / 10, 0.25, 1);
+        else if (u < -db) { c.throttleUp = 1; if (u < -4 && j.boostTank > 1) c.boost = 1; }
+      }
       else if (turning) {
         const hi = 313 + (1 - A.skill) * 40, lo = 305 - (1 - A.skill) * 30;
         if (s > hi) c.brake = 1; else if (s < lo) c.boost = j.boostTank > 1 ? 1 : 0, c.throttleUp = 1;
