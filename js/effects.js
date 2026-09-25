@@ -148,11 +148,13 @@ window.BF = window.BF || {};
         return d.t > 0 && d.pos.y > sim.terrain.obstacleHeight(d.pos.x, d.pos.z);
       });
 
-      // Tracers (every 2nd round visible, like tracer belts)
+      // Tracers (every 2nd round visible, like tracer belts). Streak grows with bullet age
+      // so it emerges from the muzzle instead of instantly spanning back past the jet.
       let n = 0;
       for (let i = 0; i < sim.bullets.length && n < this.maxTr; i += 2) {
         const b = sim.bullets[i];
-        this.trPos.set([b.pos.x, b.pos.y, b.pos.z, b.pos.x - b.vel.x * 0.025, b.pos.y - b.vel.y * 0.025, b.pos.z - b.vel.z * 0.025], n * 6); n++;
+        const tt = Math.min(0.025, b.age);
+        this.trPos.set([b.pos.x, b.pos.y, b.pos.z, b.pos.x - b.vel.x * tt, b.pos.y - b.vel.y * tt, b.pos.z - b.vel.z * tt], n * 6); n++;
       }
       this.trGeo.setDrawRange(0, n * 2); this.trGeo.attributes.position.needsUpdate = true;
 

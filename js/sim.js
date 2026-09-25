@@ -248,7 +248,7 @@ window.BF = window.BF || {};
         .addScaledVector(BF.upOf(j.quat, tmpV2), (r() - 0.5) * 2 * s).normalize();
       const pos = j.pos.clone().addScaledVector(fwd, 8);
       const vel = dir.multiplyScalar(W.cannonSpeed).add(j.vel);
-      this.bullets.push({ owner: j.id, team: j.team, pos, vel, life: W.cannonRange / W.cannonSpeed, visualOnly });
+      this.bullets.push({ owner: j.id, team: j.team, pos, vel, life: W.cannonRange / W.cannonSpeed, visualOnly, age: 0 });
       this.events.push({ type: 'shot', jet: j.id });
     }
 
@@ -257,6 +257,7 @@ window.BF = window.BF || {};
       const seg = new V3(), toC = new V3();
       this.bullets = this.bullets.filter((b) => {
         b.life -= dt;
+        b.age += dt;
         seg.copy(b.vel).multiplyScalar(dt);
         const len2 = seg.lengthSq();
         for (const j of this.jets) {

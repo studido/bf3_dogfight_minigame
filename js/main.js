@@ -517,7 +517,7 @@
 
   // ---------- Main loop ----------
   let last = performance.now(), acc = 0, pendSwitch = false, pendCounter = false, pendFire = false, pendSelect = null;
-  const iPos = new V3(), iQuat = new Q();
+  const iPos = new V3(), iQuat = new Q(), dqQ = new Q();
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
@@ -567,6 +567,13 @@
         // 30 Hz snapshot in j.pos, or they visibly step relative to the model.
         (j.dispPos || (j.dispPos = new V3())).copy(m.position);
         (j.dispQuat || (j.dispQuat = new Q())).copy(m.quaternion);
+        // Remote jets never run flight(), so rates.p stays 0 and wingtip vapour never
+        // triggers. Recover the pitch rate from consecutive display quats.
+        if (j.dispQuatPrev && dt > 0) {
+          dqQ.copy(j.dispQuatPrev).invert().multiply(j.dispQuat);
+          j.rates.p = BF.damp(j.rates.p, (2 * dqQ.x) / dt / BF.DEG, 12, dt);
+        }
+        (j.dispQuatPrev || (j.dispQuatPrev = new Q())).copy(j.dispQuat);
         m.userData.setThrottle(j.netFiring ? 0.8 : 0.4, j.boosting);
         m.userData.missiles.forEach((mm2, i2) => (mm2.visible = i2 < j.missiles));
         if (j.netFiring && j.weapon === 'cannon') {

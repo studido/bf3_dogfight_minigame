@@ -404,6 +404,17 @@ desync tuning — friends' rule: don't).
   rolling/turning. Samples are now re-spaced onto the sender's 30 Hz cadence
   (`netNextAt`), with genuine latency spikes still accepted at real time.
 
+## v0.1.30: remote visual polish (tracers, contrails)
+- Tracers were drawn as a full 0.025 s streak (~25 m at muzzle velocity) from the very
+  first tick, so the tail poked ~8 m *behind* the firing jet — fine for your own gun
+  (camera hides it), weird on a remote jet you're watching. Bullets now carry `age` and
+  the streak grows from zero, emerging from the gun like a real tracer burst. Applies to
+  all jets.
+- Remote jets never showed wingtip vapour: `effects.js` gates it on `j.rates.p > 38`
+  but remote jets never run `flight()`, leaving rates at 0. The frame sync now derives a
+  smoothed pitch rate from consecutive interpolated quats (`dispQuatPrev` delta) for
+  remote jets, so hard pulls leave vapour like locally-simulated jets.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag
