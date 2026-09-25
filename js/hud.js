@@ -107,7 +107,7 @@ window.BF = window.BF || {};
           const wl = me.weapon === 'missile' ? `MSL ×${me.missiles}` : me.overheated ? 'GUN HOT' : 'GUN';
           this.text(wl, aim.x + 30, aim.y + 14, 11, me.weapon === 'missile' && me.missiles === 0 ? ORG : 'rgba(127,227,255,0.85)');
         }
-        this.flightBlock(me, cfg, sim);
+        if (S.showFlightHud !== false) this.flightBlock(me, cfg, sim);
         this.warnings(me, sim, cfg);
       }
 
@@ -132,7 +132,12 @@ window.BF = window.BF || {};
       const s = Math.round(me.speed);
       const inBand = s >= 300 && s <= 320, sweet = Math.abs(s - 313) <= 3;
       const col = sweet ? GOLD : inBand ? GRN : s < 300 ? ORG : CY;
-      const bx = cx - 230, by = cy - 26;
+      // Boxes sit 20 % of the way from their old spot (outer edge 230 px from centre) toward
+      // the screen edge, without running into the radar on short screens.
+      const outer = 230 + 0.2 * (W / 2 - 230), by = cy - 26;
+      const rR = this.radarR(), radarRight = 24 + 2 * rR + 4 + 14, radarTop = H - 24 - 2 * rR - 8 - 44;
+      const overlapsRadar = by + 100 > radarTop;
+      const bx = Math.max(cx - outer, overlapsRadar ? radarRight : 0);
       this.panel(bx, by, 110, 52);
       this.text('SPD', bx + 8, by + 12, 10, CY);
       this.text(String(s), bx + 102, by + 30, 28, col, 'right');
@@ -150,7 +155,7 @@ window.BF = window.BF || {};
       this.bar(bx, ty + 32, tw, 4, me.boostTank / cfg.flight.boostSeconds, '#ff9a5a');
 
       // Altitude (right of centre)
-      const ax = cx + 120, ay = cy - 26;
+      const ax = W - bx - 110, ay = cy - 26; // mirror of the speed box
       this.panel(ax, ay, 110, 52);
       this.text('ALT', ax + 8, ay + 12, 10, CY);
       this.text(String(Math.round(me.altitude)), ax + 102, ay + 30, 28, me.altitude < 80 ? ORG : CY, 'right');

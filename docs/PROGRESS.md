@@ -244,6 +244,14 @@ browser with WebGL, so the first real render happens on the user's machine.
 ## v0.1.19
 - Roll rate 190 → 238°/s (+25 %). Config v16 resets only rollRate. Build 0.1.19.
 
+## v0.1.20
+- The project now lives in the git repo `bf3_dogfight_minigame` (GitHub: studido/bf3_dogfight_minigame).
+- Speed and altitude boxes moved 20 % of the way from their old position toward the screen
+  edge (outer edge at 230 + 0.2 × (half-width − 230) px from centre). On short screens the
+  speed box is kept clear of the radar.
+- Pause-menu toggle "Speed & altitude HUD" (saved). Starting a match now merges saved menu
+  options instead of overwriting them. Build 0.1.20.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

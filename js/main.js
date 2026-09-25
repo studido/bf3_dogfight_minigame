@@ -53,7 +53,8 @@
     const o = { name: $('opt-name').value.trim() || 'Pilot', enemies: +$('opt-enemies').value, wing: +$('opt-wing').value, loadout: $('opt-loadout').value, aiMissiles: $('opt-aimsl').checked, aiEcm: $('opt-aiecm').value, camStyle: $('opt-camstyle').value };
     cfg.camera.style = o.camStyle;
     cfg.ai.useMissiles = o.aiMissiles; cfg.ai.ecmMode = o.aiEcm;
-    try { localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (e) {}
+    // Merge, so menu-only options (e.g. the speed/altitude HUD toggle) aren't wiped
+    try { const prev = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); localStorage.setItem('bf3dog.opts', JSON.stringify({ ...prev, ...o })); } catch (e) {}
     me = sim.addJet(0, o.name, false); me.loadout = o.loadout;
     ais = [];
     for (let i = 0; i < o.wing; i++) ais.push(new BF.AIPilot(sim, sim.addJet(0, WING[i], true)));
@@ -110,6 +111,13 @@
   $('p-camstyle').onchange = (e) => {
     cfg.camera.style = e.target.value; $('opt-camstyle').value = e.target.value;
     try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.camStyle = e.target.value; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
+  };
+  // Speed / altitude HUD boxes on or off (saved with the other menu options)
+  let showFlightHud = opts.flightHud !== false;
+  $('p-flighthud').checked = showFlightHud;
+  $('p-flighthud').onchange = (e) => {
+    showFlightHud = e.target.checked;
+    try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.flightHud = showFlightHud; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
   };
   $('p-vol').value = audio.volume; $('p-vol').oninput = (e) => audio.setVolume(+e.target.value);
   $('resetbinds').onclick = () => { input.binds = BF.cloneConfig(BF.DEFAULT_BINDS); input.save(); renderBinds(); };
@@ -279,7 +287,7 @@
       cockpit.render(renderer);
       combiner = cockpit.combinerRect(innerWidth, innerHeight);
     }
-    hud.draw(dt, { sim, me, cam: camera, camMode, cfg, effects, paused, combiner });
+    hud.draw(dt, { sim, me, cam: camera, camMode, cfg, effects, paused, combiner, showFlightHud });
     audio.update(me, sim, cfg);
     tuning.draw(dt);
   }
