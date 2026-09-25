@@ -1,9 +1,9 @@
-# Dogfight 313 — v0.1 prototype
+# Dogfight 313 — v0.2 prototype
 
 Standalone browser jet-combat prototype with BF3-style air mechanics: spring-back throttle,
 the 313 turn-speed sweet spot, heat-seekers with lock tones, flares or ECM jamming, radar,
-and keyboard/mouse/controller support. Single-player vs AI for now; the sim is built so a
-2–4 player lobby can be added in v0.2.
+and keyboard/mouse/controller support. Single-player vs AI, or 2–4 player online dogfights
+through a WebSocket relay (room codes, join-in-progress, reconnect resume).
 
 ## Run it
 
@@ -14,6 +14,13 @@ The start screen shows the build number (e.g. `build 0.1.18`). If it doesn't mat
 update, close the tab and reopen `index.html` (or press Ctrl+F5).
 
 Click the screen to capture the mouse. Plug in a controller any time; it's picked up automatically.
+
+## Multiplayer
+
+- **HOST ONLINE** creates a room and shows a 4-letter code. Share the code; friends enter it and press **JOIN ONLINE**. Works from any machine — no port forwarding, both connect out to the relay.
+- The host picks AI settings in the lobby and starts the match — but late comers can also **join mid-match**, they drop straight into the furball.
+- Each player flies their own jet; everyone can see everyone. The host additionally runs the AI enemies.
+- Pause menu → **Leave match** to bail out. A brief connection drop auto-reconnects (~1 min grace).
 
 ## Controls
 
@@ -63,7 +70,8 @@ in the browser.
 | `js/world.js`, `jet-model.js`, `effects.js` | Visuals |
 | `js/cockpit.js` | F/A-18-style cockpit + MFD pages (second render pass) |
 | `js/hud.js`, `audio.js`, `tuning-panel.js` | HUD, synth audio, live tuning |
-| `js/main.js` | Loop (fixed 60 Hz sim), camera, menus |
+| `js/net.js` | Multiplayer client: room create/join, reconnect, state/event relay (see the `dogfight-relay` repo for the server + PROTOCOL.md) |
+| `js/main.js` | Loop (fixed 60 Hz sim), camera, menus, lobby |
 | `docs/VIDEO_ANALYSIS.md` | Measurements from the reference clips |
 | `docs/PROGRESS.md` | Build status and next steps |
 
