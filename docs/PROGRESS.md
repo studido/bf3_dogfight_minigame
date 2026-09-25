@@ -372,6 +372,15 @@ desync tuning — friends' rule: don't).
   `joined{started:true, seed}` and traffic flows; PROTOCOL.md documents it.
   No server change needed, no redeploy.
 
+## v0.1.27: room code in pause menu + remote ECM smoke fix
+- Pause menu shows the room code with a "friends can join anytime" hint while an online
+  match is running, so nobody has to back out to the lobby to share the code.
+- Fixed invisible remote ECM: sim.step skipped *all* work for remote jets, so jet-owned
+  `ecmPuff` events were never emitted on observers — only the ecmUntil window replicates.
+  Remote jets now emit their own smoke puffs locally while jamming (and stop when dead,
+  since a stale ecmUntil from the net stream otherwise lingers on a corpse). Regression
+  test in test/mp-sim.js.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

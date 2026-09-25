@@ -82,6 +82,9 @@
     pauseChangedAt = performance.now();
     paused = p;
     $('pause').style.display = p && started ? 'flex' : 'none';
+    const showRoom = p && started && mp && net.room;
+    $('p-room').style.display = showRoom ? '' : 'none';
+    if (showRoom) $('p-roomcode').textContent = net.room.code;
     audio.suspend(p);
     if (p && document.pointerLockElement) document.exitPointerLock();
     if (!p) { glCanvas.requestPointerLock && glCanvas.requestPointerLock(); }

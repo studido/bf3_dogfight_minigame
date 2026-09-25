@@ -117,5 +117,23 @@ test('remote countermeasures replicate (flares spawn + decoy, ECM jams)', () => 
   assert.ok(sim.t < them.ecmUntil, 'ECM window set');
 });
 
+test('remote ECM emits smoke puffs locally (renderer-only events)', () => {
+  const sim = freshSim();
+  const me = sim.addJet(0, 'Me', false);
+  const them = sim.addJet(1, 'Bob', false);
+  them.remote = true;
+  sim.applyRemoteCm(them, 'ecm');
+  sim.events.length = 0;
+  for (let i = 0; i < 60; i++) sim.step(1 / 60); // 1s
+  const puffs = sim.events.filter((e) => e.type === 'ecmPuff');
+  assert.ok(puffs.length >= 4, `expected ecmPuff events while remote ECM is active, got ${puffs.length}`);
+  assert.ok(puffs.every((p) => p.pos && p.vel), 'puffs carry pos/vel');
+  // Dead remote jet must not keep puffing.
+  them.alive = false;
+  sim.events.length = 0;
+  for (let i = 0; i < 60; i++) sim.step(1 / 60);
+  assert.strictEqual(sim.events.filter((e) => e.type === 'ecmPuff').length, 0, 'no puffs once the remote jet is dead');
+});
+
 console.log(`\n${passed} tests passed`);
 process.exit(0);

@@ -63,7 +63,15 @@ window.BF = window.BF || {};
       for (const j of this.jets) {
         // Remote jets belong to another client: no flight, weapons, countermeasures
         // or respawns here — their owner's machine simulates them and streams state.
-        if (j.remote) continue;
+        // ECM puffs are the exception: they are pure renderer events, never sent over
+        // the wire, so emit them locally while the remote jet's jammer window is on.
+        if (j.remote) {
+          if (j.alive && this.t < j.ecmUntil) {
+            j.ecmPuffT -= dt;
+            if (j.ecmPuffT <= 0) { j.ecmPuffT = 0.12; this.events.push({ type: 'ecmPuff', pos: j.pos.clone(), vel: j.vel.clone() }); }
+          }
+          continue;
+        }
         if (!j.alive) {
           j.respawnT -= dt;
           if (j.respawnT <= 0) this.spawn(j);
