@@ -381,6 +381,14 @@ desync tuning — friends' rule: don't).
   since a stale ecmUntil from the net stream otherwise lingers on a corpse). Regression
   test in test/mp-sim.js.
 
+## v0.1.28: remote jet smoothness
+- Remote jets looked ~"30 Hz stepping" despite interpolation: net state sent positions
+  rounded to **whole meters** (±0.5 m noise per 30 Hz sample ≈ 17% of per-tick travel at
+  313 km/h), so the 120 ms interp buffer just glided between jittered points. Positions
+  now go out at 0.1 m precision; payload stays tiny.
+- If any residual pumping survives bad-network jitter, next lever is keying interp off
+  sender step counter instead of arrival time.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

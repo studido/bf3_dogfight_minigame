@@ -368,7 +368,7 @@
       const j = netSlots[s];
       if (j.remote) continue;
       const flags = (j.alive ? 1 : 0) | (j.boosting ? 2 : 0) | (j.firing ? 4 : 0);
-      jets.push([s, Math.round(j.pos.x), Math.round(j.pos.y), Math.round(j.pos.z),
+      jets.push([s, +j.pos.x.toFixed(1), +j.pos.y.toFixed(1), +j.pos.z.toFixed(1),
         +j.quat.x.toFixed(3), +j.quat.y.toFixed(3), +j.quat.z.toFixed(3), +j.quat.w.toFixed(3),
         Math.round(j.speed), +j.health.toFixed(1), flags, j.weapon === 'missile' ? 1 : 0, j.missiles]);
     }
