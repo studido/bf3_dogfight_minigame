@@ -128,7 +128,7 @@ BF.Cockpit = class {
         g.strokeRect(28, 40, 200, 200);
         const fwd = BF.forwardOf(me.quat, new THREE.Vector3()), right = BF.rightOf(me.quat, new THREE.Vector3());
         for (const j of sim.jets) {
-          if (j === me || !j.alive) continue;
+          if (j === me || !j.alive || sim.t < j.ecmUntil) continue; // jammers are invisible
           const d = new THREE.Vector3().subVectors(j.pos, me.pos), r = d.length(); if (r > 5000) continue;
           const az = Math.atan2(d.dot(right), d.dot(fwd)) / BF.DEG; if (Math.abs(az) > 60) continue;
           const x = 128 + az / 60 * 100, y = 240 - r / 5000 * 200;

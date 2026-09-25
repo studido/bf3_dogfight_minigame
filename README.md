@@ -10,6 +10,9 @@ and keyboard/mouse/controller support. Single-player vs AI for now; the sim is b
 Double-click `index.html` (Chrome or Edge recommended). Three.js loads from a CDN, so you need
 an internet connection the first time. No install, no server.
 
+The start screen shows the build number (e.g. `build 0.1.18`). If it doesn't match the latest
+update, close the tab and reopen `index.html` (or press Ctrl+F5).
+
 Click the screen to capture the mouse. Plug in a controller any time; it's picked up automatically.
 
 ## Controls

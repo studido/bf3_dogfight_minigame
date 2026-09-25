@@ -28,6 +28,7 @@
 
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2500); };
 
+  $('build').textContent = BF.BUILD;
   // ---------- Match setup ----------
   const opts = (() => { try { return JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); } catch (e) { return {}; } })();
   if (opts.name) $('opt-name').value = opts.name;

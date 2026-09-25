@@ -224,6 +224,26 @@ browser with WebGL, so the first real render happens on the user's machine.
   distance" for jams within 3 km, and "LOCK JAMMED" when you have missiles selected and are
   in range.
 
+## v0.1.17: radar
+- Radar range 750 m (config v15).
+- Contacts and your own marker are now top-down fighter silhouettes (swept wings, tailplanes),
+  about 25 % larger than the old arrows.
+- ECM: a jamming jet disappears from your radar and the cockpit radar MFD for the jam's
+  duration. The AI also loses track of a jamming target beyond 1 km (tested: the AI dropped the
+  player as a target at 1.76 km while jammed). Within 1 km it still sees you visually.
+
+## v0.1.18: stale-file fix
+- The user saw the old radar (1.0 km label, jammers still shown) after v0.1.17. Checked:
+  the code on disk is correct (a headless radar draw test gives a 750 m label, and a jamming
+  contact isn't drawn), and a saved v14 config migrates to 750. So the browser was running
+  cached copies of the old files.
+- Every script and the stylesheet now load with `?v=<build>` (cache-busting), and the start
+  screen shows the build number. Bump `BF.BUILD` in config.js and the `?v=` in index.html
+  together on each update.
+
+## v0.1.19
+- Roll rate 190 → 238°/s (+25 %). Config v16 resets only rollRate. Build 0.1.19.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

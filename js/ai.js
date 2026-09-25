@@ -18,6 +18,7 @@ window.BF = window.BF || {};
       for (const o of this.sim.jets) {
         if (!o.alive || o.team === j.team) continue;
         let d = o.pos.distanceTo(j.pos);
+        if (this.sim.t < o.ecmUntil && d > 1000) continue; // jamming: off their radar beyond visual range
         if (o.lock.targetId === j.id) d *= 0.6; // go after whoever is on us
         if (o.id === this.targetId) d *= 0.8;   // stickiness
         if (d < bestD) { bestD = d; best = o; }
@@ -31,7 +32,9 @@ window.BF = window.BF || {};
       if (!j.alive) return;
       this.retargetT -= dt;
       if (this.retargetT <= 0) { this.pickTarget(); this.retargetT = 2.5 + sim.rand() * 1.5; }
-      const tgt = this.targetId != null ? sim.jet(this.targetId) : null;
+      let tgt = this.targetId != null ? sim.jet(this.targetId) : null;
+      // A jamming target beyond ~1 km drops off the AI's radar: it loses track until the jam ends
+      if (tgt && sim.t < tgt.ecmUntil && tgt.pos.distanceTo(j.pos) > 1000) tgt = null;
       const fwd = BF.forwardOf(j.quat, new V3());
       let mode = 'cruise', dist = Infinity, angleOff = Math.PI;
 

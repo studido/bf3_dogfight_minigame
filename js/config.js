@@ -2,6 +2,9 @@
 // and can export/import them as JSON. Speeds are in HUD units (km/h); the sim
 // converts to m/s internally.
 window.BF = window.BF || {};
+// Build number: shown on the start screen. index.html loads every script with ?v=<build> so the
+// browser can't keep running stale cached files after an update (bump both together).
+BF.BUILD = '0.1.19';
 
 BF.DEFAULT_CONFIG = {
   flight: {
@@ -41,7 +44,7 @@ BF.DEFAULT_CONFIG = {
       [0, 12], [150, 16], [250, 24], [285, 32], [300, 44],
       [313, 58], [325, 50], [345, 40], [400, 33], [480, 27], [650, 22]
     ],
-    rollRate: 190,           // deg/s at full stick
+    rollRate: 238,           // deg/s at full stick (was 190, +25% in v0.1.19)
     yawRate: 26,             // deg/s at full rudder
     controlResponse: 9,      // how fast actual rates chase stick input (1/s)
     rollAtLowSpeed: 0.6,     // roll-rate multiplier at stall speed
@@ -117,7 +120,7 @@ BF.DEFAULT_CONFIG = {
     rollLag: 3.2,            // lower = jet banks more in frame (BF3 style)
     baseFov: 70,
     boostFov: 82,
-    radarRange: 1000,        // m centre to rim
+    radarRange: 750,         // m centre to rim
     style: 'roll',           // 'roll' = BF3 roll cam, 'chase' = full chase (menu)
     // BF3 roll cam (js/rollcam.js). Framing matches the v0.1.12 feel (close, jet stays near
     // centre), now on smooth springs.
@@ -141,7 +144,7 @@ BF.cloneConfig = (c) => JSON.parse(JSON.stringify(c));
 BF.CONFIG = BF.cloneConfig(BF.DEFAULT_CONFIG);
 // Bump when defaults change meaningfully: old saved tuning is discarded so
 // everyone picks up the new defaults (export a preset first to keep yours).
-BF.CONFIG_VERSION = 14;
+BF.CONFIG_VERSION = 16;
 // Keys whose defaults changed in a version: dropped from older saves, everything else kept.
 BF.CONFIG_MIGRATIONS = {
   3: [['flight', 'boostRate']],
@@ -156,6 +159,8 @@ BF.CONFIG_MIGRATIONS = {
   12: [['camera', 'rollCamBoomRate'], ['camera', 'rollCamLookRate'], ['camera', 'rollCamMaxOffset'], ['camera', 'rollCamRollFollow'], ['camera', 'rollCamFrameMargin']], // smoother roll cam
   13: [['camera', 'rollCamJetRadius'], ['camera', 'rollCamDistance'], ['camera', 'rollCamHeight'], ['camera', 'rollCamBoomRate'], ['camera', 'rollCamLookRate'], ['camera', 'rollCamMaxOffset']], // back to close framing
   14: [['flight', 'boostRate'], ['flight', 'boostRateClimb']], // AB -25%, smooth brake curve
+  15: [['camera', 'radarRange']],
+  16: [['flight', 'rollRate']],
 };
 try {
   const saved = JSON.parse(localStorage.getItem('bf3dog.config') || 'null');

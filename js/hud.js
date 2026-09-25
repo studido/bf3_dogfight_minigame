@@ -194,10 +194,16 @@ window.BF = window.BF || {};
         const rx = dx * Math.cos(hdg) + dz * Math.sin(hdg), ry = -dx * Math.sin(hdg) + dz * Math.cos(hdg);
         return { x: cx + rx / range * R, y: cy + ry / range * R };
       };
+      // Top-down fighter silhouette (nose up), size = half its length in px
+      const JET = [[0, -1], [0.1, -0.72], [0.14, -0.4], [0.2, -0.18], [0.92, 0.2], [0.92, 0.34], [0.2, 0.3], [0.2, 0.62],
+        [0.5, 0.82], [0.5, 0.94], [0.14, 0.88], [0.12, 1], [-0.12, 1], [-0.14, 0.88], [-0.5, 0.94], [-0.5, 0.82], [-0.2, 0.62],
+        [-0.2, 0.3], [-0.92, 0.34], [-0.92, 0.2], [-0.2, -0.18], [-0.14, -0.4], [-0.1, -0.72]];
       const arrow = (x, y, ang, size, fill) => {
         g.save(); g.translate(x, y); g.rotate(ang);
-        g.fillStyle = fill; g.beginPath(); g.moveTo(0, -size); g.lineTo(size * 0.7, size * 0.8); g.lineTo(0, size * 0.35); g.lineTo(-size * 0.7, size * 0.8); g.closePath(); g.fill();
-        g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1; g.stroke(); g.restore();
+        g.fillStyle = fill; g.beginPath();
+        JET.forEach(([px, py], i) => (i ? g.lineTo(px * size, py * size) : g.moveTo(px * size, py * size)));
+        g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1; g.stroke(); g.restore();
       };
       g.save();
       g.beginPath(); g.arc(cx, cy, R, 0, 7);
@@ -221,6 +227,7 @@ window.BF = window.BF || {};
       // Contacts: arrows in their direction of travel, ▲/▼ if well above/below you
       for (const j of sim.jets) {
         if (j === me || !j.alive) continue;
+        if (sim.t < j.ecmUntil) continue; // ECM jamming: invisible on radar
         const p = toR(j.pos), jf = BF.forwardOf(j.quat, new V3());
         // Out of range: pin to the rim so you still know which way they are
         const ox = p.x - cx, oy = p.y - cy, od = Math.hypot(ox, oy), out = od > R - 8;
@@ -228,10 +235,10 @@ window.BF = window.BF || {};
         g.globalAlpha = out ? 0.55 : 1;
         const rel = Math.atan2(jf.x, -jf.z) - hdg;
         const col = j.team === me.team ? '#8fd4ff' : RED;
-        arrow(p.x, p.y, rel, 8, col);
+        arrow(p.x, p.y, rel, 9.5, col); // ~25% bigger than the old arrow
         const dy = j.pos.y - me.pos.y;
-        if (Math.abs(dy) > 150) this.text(dy > 0 ? '▲' : '▼', p.x + 11, p.y - 8, 9, col, 'center');
-        if (me.lock.targetId === j.id) { g.strokeStyle = me.lock.locked ? RED : ORG; g.lineWidth = 1.5; g.beginPath(); g.arc(p.x, p.y, 12, 0, 7); g.stroke(); }
+        if (Math.abs(dy) > 150) this.text(dy > 0 ? '▲' : '▼', p.x + 15, p.y - 10, 10, col, 'center');
+        if (me.lock.targetId === j.id) { g.strokeStyle = me.lock.locked ? RED : ORG; g.lineWidth = 1.5; g.beginPath(); g.arc(p.x, p.y, 14, 0, 7); g.stroke(); }
         g.globalAlpha = 1;
       }
       for (const m of sim.missiles) { const p = toR(m.pos); g.fillStyle = m.target === me.id ? RED : '#fff'; g.fillRect(p.x - 2, p.y - 2, 4, 4); }
@@ -247,7 +254,7 @@ window.BF = window.BF || {};
         this.text(lbl, cx + Math.cos(a) * (R + 11), cy + Math.sin(a) * (R + 11), 12, lbl === 'N' ? GOLD : CY, 'center');
       }
       // Own jet + heading readout at 12 o'clock
-      arrow(cx, cy, 0, 10, '#fff');
+      arrow(cx, cy, 0, 12, '#fff');
       const hdgDeg = Math.round(((hdg / BF.DEG) + 360) % 360);
       this.panel(cx - 24, cy - R - 32, 48, 18);
       this.text(String(hdgDeg).padStart(3, '0') + '°', cx, cy - R - 23, 12, '#fff', 'center');
