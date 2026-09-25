@@ -347,6 +347,18 @@ Still open for netcode polish: adaptive send rate when engaged, per-player ping 
 lobby, host migration, pause-menu tuning changes mid-match (one diverging client can
 desync tuning — friends' rule: don't).
 
+## v0.1.25: multiplayer hotfix
+- index.html: a corrupted lobby `<div>` (broken `id="lobby"`) silently killed every
+  `$('lobby')` lookup — that was why HOST ONLINE appeared to do nothing.
+- net.js create/join now clear any saved resume session up front (explicit user action
+  must never auto-resume an old room, which could also hijack the host slot after the
+  server's resume take-over change).
+- Verified end-to-end against the live relay (create/join/settings/ready/start/state/
+  event relay, graceful + zombie resume) via Node probes driving the real `js/net.js`.
+- Relay server v0.1.1 (separate repo): resume now uses token-verified take-over so
+  reconnecting while the server still sees a zombie old socket succeeds; 11 relay
+  tests pass, deployed as the same `bf3-dogfight-relay` URL.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

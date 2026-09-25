@@ -80,11 +80,13 @@ window.BF = window.BF || {};
     send(m) { if (this.connected) this.ws.send(JSON.stringify(m)); }
 
     create(name) {
+      this._forgetSession(); // explicit user action: never auto-resume an old room
       this.connect().then(() => this.send({ t: 'create', name }))
         .catch(() => this.emit('error', { t: 'error', code: 'connect', msg: 'could not reach server' }));
     }
     join(code, name) {
-      this.connect().then(() => this.send({ t: 'join', code, name }))
+      this._forgetSession();
+      this.connect().then(() => this.send({ t: 'join', code: code.toUpperCase(), name }))
         .catch(() => this.emit('error', { t: 'error', code: 'connect', msg: 'could not reach server' }));
     }
     leave() { if (this.room) { this.send({ t: 'leave' }); this._clearRoom(); } }
