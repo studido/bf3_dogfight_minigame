@@ -70,7 +70,8 @@ window.BF = window.BF || {};
       // Enemy / friendly markers + lock box
       for (const j of sim.jets) {
         if (j === me || !j.alive) continue;
-        const p = this.project(tmp.copy(j.pos).add(new V3(0, 4, 0)), cam); if (!p) continue;
+        const jp = j.dispPos || j.pos; // remote jets: the interpolated on-screen position
+        const p = this.project(tmp.copy(jp).add(new V3(0, 4, 0)), cam); if (!p) continue;
         const d = j.pos.distanceTo(me.pos), enemy = j.team !== me.team, col = enemy ? RED : '#6ab7ff';
         if (d > 5000) continue;
         g.save(); g.translate(p.x, p.y - 14); g.rotate(Math.PI / 4); g.strokeStyle = col; g.lineWidth = 2; g.strokeRect(-5, -5, 10, 10);
@@ -82,7 +83,7 @@ window.BF = window.BF || {};
           const k = BF.clamp(me.lock.t / cfg.weapons.missileLockTime, 0, 1);
           const sz = me.lock.locked ? 22 : 60 - k * 38;
           const blink = me.lock.locked || Math.floor(sim.t * 8) % 2 === 0;
-          const p2 = this.project(j.pos, cam);
+          const p2 = this.project(jp, cam);
           if (p2 && blink) {
             g.strokeStyle = me.lock.locked ? RED : ORG; g.lineWidth = 2; g.strokeRect(p2.x - sz, p2.y - sz, sz * 2, sz * 2);
             if (me.lock.locked) this.text('LOCKED', p2.x, p2.y + sz + 12, 12, RED, 'center');

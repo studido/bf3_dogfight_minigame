@@ -382,7 +382,13 @@
       const j = netSlots[a[0]];
       if (!j || !j.remote || j.ownerNet !== fromId) continue;
       const [, x, y, z, qx, qy, qz, qw, spd, hp, flags, wpn, msl] = a;
-      (j.netBuf = j.netBuf || []).push({ at, x, y, z, qx, qy, qz, qw });
+      // Interp-timeline stamp, not raw arrival time: WebSocket can deliver 2 packets in
+      // one frame then idle for 60 ms, which makes the interpolator surge/stall. Spread
+      // samples at the sender's 30 Hz cadence; genuinely late packets keep real time.
+      const sat = Math.max(at, j.netNextAt || 0);
+      j.netNextAt = sat + 1 / NET_HZ;
+      if (!j.netBuf) j.netBuf = [];
+      j.netBuf.push({ at: sat, x, y, z, qx, qy, qz, qw });
       if (j.netBuf.length > 12) j.netBuf.shift();
       j.pos.set(x, y, z);
       j.quat.set(qx, qy, qz, qw).normalize();
@@ -556,17 +562,25 @@
           tmpQ.set(a.qx, a.qy, a.qz, a.qw); iQuat.set(nxt.qx, nxt.qy, nxt.qz, nxt.qw);
           m.quaternion.slerpQuaternions(tmpQ, iQuat, k);
         } else { m.position.copy(j.pos); m.quaternion.copy(j.quat); }
+        // Display transform = what is on screen this frame (interpolated for remote
+        // jets). HUD markers, damage smoke and tracers must use this, not the raw
+        // 30 Hz snapshot in j.pos, or they visibly step relative to the model.
+        (j.dispPos || (j.dispPos = new V3())).copy(m.position);
+        (j.dispQuat || (j.dispQuat = new Q())).copy(m.quaternion);
         m.userData.setThrottle(j.netFiring ? 0.8 : 0.4, j.boosting);
         m.userData.missiles.forEach((mm2, i2) => (mm2.visible = i2 < j.missiles));
         if (j.netFiring && j.weapon === 'cannon') {
           j.netFireCd = (j.netFireCd || 0) - dt;
           if (j.netFireCd < -0.2) j.netFireCd = 0;
-          while (j.netFireCd <= 0) { j.netFireCd += 1 / cfg.weapons.cannonRps; sim.fireRound(j, true); }
+          const vj = { id: j.id, team: j.team, pos: j.dispPos, quat: j.dispQuat, vel: j.vel };
+          while (j.netFireCd <= 0) { j.netFireCd += 1 / cfg.weapons.cannonRps; sim.fireRound(vj, true); }
         } else j.netFireCd = 0;
         continue;
       }
       m.position.lerpVectors(j.prevPos, j.pos, alpha);
       m.quaternion.slerpQuaternions(j.prevQuat, j.quat, alpha);
+      (j.dispPos || (j.dispPos = new V3())).copy(m.position);
+      (j.dispQuat || (j.dispQuat = new Q())).copy(m.quaternion);
       const thr = j.ctl.brake > 0.05 ? 0 : j.ctl.throttleUp > 0.05 ? 0.8 : 0.4;
       m.userData.setThrottle(thr, j.boosting);
       m.userData.missiles.forEach((mm, i) => (mm.visible = i < j.missiles));

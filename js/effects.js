@@ -131,12 +131,13 @@ window.BF = window.BF || {};
       // Jets: wingtip vapour in hard pulls, damage smoke
       for (const j of sim.jets) {
         if (!j.alive) continue;
-        const right = BF.rightOf(j.quat, new V3()), fwd = BF.forwardOf(j.quat, new V3());
+        const jp = j.dispPos || j.pos, jq = j.dispQuat || j.quat; // remote jets: on-screen transform
+        const right = BF.rightOf(jq, new V3()), fwd = BF.forwardOf(jq, new V3());
         if (Math.abs(j.rates.p) > 38) {
-          for (const sx of [1, -1]) this.smoke.emit({ pos: j.pos.clone().addScaledVector(right, 7.4 * sx).addScaledVector(fwd, -3), vel: null, life: 0.7, s0: 0.5, s1: 1.4, col: VAPOR, a: 0.5 });
+          for (const sx of [1, -1]) this.smoke.emit({ pos: jp.clone().addScaledVector(right, 7.4 * sx).addScaledVector(fwd, -3), vel: null, life: 0.7, s0: 0.5, s1: 1.4, col: VAPOR, a: 0.5 });
         }
-        if (j.health < 50 && this.r() < 0.7) this.smoke.emit({ pos: j.pos.clone().addScaledVector(fwd, -7), vel: this.jitter(3), life: 2.5, s0: 2, s1: 9, col: DARK, a: 0.55 * (1 - j.health / 50) + 0.2 });
-        if (j.health < 25 && this.r() < 0.5) this.fire.emit({ pos: j.pos.clone().addScaledVector(fwd, -6), vel: null, life: 0.2, s0: 3, s1: 1.5, col: FIRE, a: 1 });
+        if (j.health < 50 && this.r() < 0.7) this.smoke.emit({ pos: jp.clone().addScaledVector(fwd, -7), vel: this.jitter(3), life: 2.5, s0: 2, s1: 9, col: DARK, a: 0.55 * (1 - j.health / 50) + 0.2 });
+        if (j.health < 25 && this.r() < 0.5) this.fire.emit({ pos: jp.clone().addScaledVector(fwd, -6), vel: null, life: 0.2, s0: 3, s1: 1.5, col: FIRE, a: 1 });
       }
 
       // Debris

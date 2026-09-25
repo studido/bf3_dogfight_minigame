@@ -389,6 +389,21 @@ desync tuning — friends' rule: don't).
 - If any residual pumping survives bad-network jitter, next lever is keying interp off
   sender step counter instead of arrival time.
 
+## v0.1.29: remote-jet visual convergence
+- **The model interpolated; everything attached to it stepped.** HUD markers/lock box
+  (`hud.js`), wingtip vapour + damage smoke (`effects.js`) and remote cannon tracers
+  (`main.js`) all read `j.pos` — the raw 30 Hz net snapshot — while the 3D model rendered
+  the 120 ms-delayed interpolated path. Result: the name diamond visibly stepped relative
+  to the jet, trails popped ~10 m ahead, tracers appeared in front of the nose.
+  Frame sync now stores the on-screen transform as `dispPos`/`dispQuat` on every jet and
+  all those consumers draw from it. Remote tracers spawn from a lightweight view of the
+  interpolated transform (`v` object passed to `sim.fireRound`).
+- **Interp timeline de-jittered**: netBuf samples were stamped with raw arrival time, so
+  WebSocket burstiness (two packets in one frame, then a silent 60 ms) translated into
+  speed pumping through the interpolator — invisible in straight flight, obvious while
+  rolling/turning. Samples are now re-spaced onto the sender's 30 Hz cadence
+  (`netNextAt`), with genuine latency spikes still accepted at real time.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag
