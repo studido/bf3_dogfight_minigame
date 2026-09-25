@@ -1,0 +1,49 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1218; font-family: "Segoe UI", Arial, sans-serif; color: #cfefff; }
+#gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { pointer-events: none; }
+#ui { position: fixed; inset: 0; pointer-events: none; }
+.screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(8,24,36,0.55), rgba(4,10,16,0.88)); pointer-events: auto; }
+.card { width: min(760px, 94vw); max-height: 92vh; overflow: auto; background: rgba(10,34,50,0.78); border: 1px solid rgba(127,227,255,0.35); padding: 26px 30px; backdrop-filter: blur(6px); }
+.card.wide { width: min(880px, 96vw); }
+h1 { margin: 0; font-size: 44px; letter-spacing: 6px; color: #e8f8ff; font-weight: 700; }
+h1 span { color: #ffd84a; }
+h2 { margin: 0 0 12px; letter-spacing: 4px; }
+h3 { margin: 18px 0 8px; font-size: 14px; letter-spacing: 2px; color: #7fe3ff; text-transform: uppercase; }
+h3 small { text-transform: none; letter-spacing: 0; color: rgba(207,239,255,0.55); font-weight: 400; margin-left: 8px; }
+.sub { margin: 4px 0 18px; color: rgba(207,239,255,0.65); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 18px; }
+label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: #9fdcf0; }
+label:has(input[type=checkbox]) { flex-direction: row; align-items: center; }
+input, select, button, textarea { font: inherit; color: #e8f8ff; background: rgba(0,0,0,0.35); border: 1px solid rgba(127,227,255,0.4); padding: 6px 8px; }
+button { cursor: pointer; text-transform: uppercase; letter-spacing: 2px; font-size: 13px; padding: 8px 16px; }
+button:hover { background: rgba(127,227,255,0.18); }
+button.big { margin-top: 18px; font-size: 18px; padding: 10px 44px; background: rgba(127,227,255,0.22); border-color: #7fe3ff; }
+.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; font-size: 13px; }
+.controls p { margin: 4px 0; color: rgba(207,239,255,0.8); }
+.controls b { color: #fff; }
+.tip { margin-top: 16px; font-size: 13px; color: rgba(207,239,255,0.8); }
+.gold { color: #ffd84a; }
+#binds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; font-size: 13px; }
+.bind { display: grid; grid-template-columns: 1fr repeat(3, 92px); gap: 4px; align-items: center; }
+.bind span { color: #cfefff; }
+.bind button { padding: 3px 4px; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.bind button.listening { background: #ffd84a; color: #000; }
+#toast { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); padding: 8px 18px; background: rgba(10,34,50,0.85); border: 1px solid rgba(127,227,255,0.4); font-size: 13px; opacity: 0; transition: opacity .3s; }
+#toast.show { opacity: 1; }
+#tuning { position: absolute; top: 12px; right: 12px; width: 370px; max-height: calc(100vh - 24px); overflow: auto; background: rgba(8,26,38,0.9); border: 1px solid rgba(127,227,255,0.35); padding: 12px 14px; pointer-events: auto; font-size: 12px; }
+.tp-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.tp-head span { color: rgba(207,239,255,0.55); font-size: 11px; }
+#tp-curve { background: rgba(0,0,0,0.3); cursor: ns-resize; display: block; }
+.tp-note { color: rgba(207,239,255,0.55); font-size: 11px; margin: 4px 0 8px; }
+details { border-top: 1px solid rgba(127,227,255,0.15); padding: 6px 0; }
+summary { cursor: pointer; color: #7fe3ff; text-transform: uppercase; letter-spacing: 1px; }
+.tp-row { display: grid; grid-template-columns: 130px 1fr 46px; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; font-size: 12px; margin: 3px 0; flex-direction: row; }
+.tp-row input { padding: 0; }
+.tp-row em { font-style: normal; text-align: right; color: #fff; }
+.tp-btns { display: flex; gap: 6px; margin-top: 8px; }
+.tp-btns button { font-size: 11px; padding: 5px 8px; letter-spacing: 1px; }
+#tp-json { width: 100%; height: 70px; margin-top: 6px; font-size: 11px; font-family: Consolas, monospace; }
+#tp-diag { font-family: Consolas, monospace; font-size: 11px; line-height: 1.5; background: rgba(0,0,0,0.35); border: 1px solid rgba(127,227,255,0.25); padding: 6px 8px; margin-bottom: 8px; color: #cfefff; }
+#tp-diag b { color: #ffd84a; }

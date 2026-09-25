@@ -1,0 +1,234 @@
+# Build progress
+
+## v0.1: built, awaiting first flight test
+
+Everything in the v0.1 scope is written (see README for the file map). Verified headlessly:
+
+- Flight model in Node: spring-back returns to 345; a 360° turn takes **6.3 s at 313**,
+  8.3 s at 300, 9.1 s at cruise 345, 11.3 s at 285. Brake-feathering on the clip-1 rhythm
+  (1.9 s on / 3.5 s off) holds roughly 290–333.
+- Combat in Node: lock in 1.6 s; an unflared missile hits for 42; flares decoy it; ECM
+  breaks the lock and jams the missile.
+- AI furball (5 jets, 3 min): kills come from missiles and cannon; the ram-collision
+  problem is fixed.
+- Full game loop smoke test with the DOM and WebGL stubbed: menus, pause, restart, camera
+  modes and tuning panel run with no errors.
+
+**Not yet verified:** how it actually looks and performs on a real GPU. The sandbox has no
+browser with WebGL, so the first real render happens on the user's machine.
+
+## Decisions
+- Three.js r128 from cdnjs, classic scripts so index.html opens from disk. Global `BF`.
+- `sim.js` is pure state driven by per-jet Controls → a future Node server can run it.
+- Throttle: release = cruise, W = throttle up, Shift = afterburner, S = brake.
+- Countermeasure loadout: flares OR ECM (one key), picked at start or in the pause menu.
+- Linear colour output with no tone mapping, to avoid a seam between the sky shader and the fog.
+
+## v0.1.1: first round of feedback
+- Controller: right stick = pitch/roll, left stick = yaw (option in pause menu to swap).
+- Controller camera on R3; Y/△ switches weapon. Keyboard: RMB/R switches, 1/2 select directly.
+- One weapon active at a time; lock-on only runs with heat-seekers selected; a missile
+  fires on the press, so holding the trigger doesn't ripple both missiles.
+- Speed retune from clip 1 (was: gravity 40, brake 11, AB 40 → loop band 271–366, not
+  holdable). Now gravity 25, brake 20, AB 70. A simulated pilot tapping AB on the climb and
+  holding brake on the descent holds **309–317** in a continuous loop (AB 7 %, brake 39 %,
+  brake held ~2.3 s per loop; clip measured 6 % / 31 % / ~1.9 s). Flat turn: 311–317 with
+  about 20 % brake.
+- Saved tuning and bindings are versioned. Older saves are discarded so new defaults apply.
+- AI keeps heat-seekers up while hunting and switches to guns for close shots.
+
+## v0.1.2: second round of feedback
+- F/A-18-style cockpit (`js/cockpit.js`), drawn as a second pass so it never clips into
+  terrain. It has an instrument panel with three green MFDs (radar B-scope, SMS/stores,
+  ENERGY page with the 313 band), UFCP keypad, glare shield, HUD with twin combiner glass,
+  windscreen bars, canopy bow with three mirrors, canopy rails and side consoles. It is lit
+  by the real sun direction.
+- Green F-18 HUD symbology clipped to the combiner: pitch ladder (dashed below the horizon),
+  waterline, heading tape, airspeed box (turns gold at 313), altitude box, Mach, G, throttle
+  state, GUN pipper or AIM-9 seeker circle, SHOOT cue, countermeasure status.
+- Afterburner 70 → 130. A simulated tap-only pilot holds 309–323 in tight, medium and wide
+  loops (at 70 the wide loop fell to 149). Old saves keep their other tuning; only
+  boostRate is reset (config migrations in `config.js`).
+- "AI uses missiles" toggle on the start screen and pause menu (verified: 0 AI launches when off).
+
+## v0.1.3: afterburner fix
+- Root cause: the afterburner *tank*, not the thrust. With a 6 s tank and a 1.5 s refill
+  delay, taps every ~1.5 s never refilled, so the afterburner died after about 18 s of
+  tapping. Now it's a 10 s tank, 0.25 s delay and 1.5 s/s refill. Tapping 0.5 s on / 0.5 s off
+  lasts over a minute; long continuous burns still empty it.
+- Tested through the real keyboard path: a straight vertical climb with 0.5 s taps every
+  1–1.5 s holds or gains speed for 20 s+ (it used to drop to 228 once the tank ran dry).
+- HUD shows "AFTERBURNER EMPTY" if you press it with the tank dry. Refill delay and refill
+  rate are now in the tuning panel. Config migration v4 resets only the afterburner values.
+
+## v0.1.4: afterburner input bugs
+- Tuning-panel sliders kept keyboard focus, and keydown ignored any focused INPUT, so all
+  flight keys (including Shift) died after touching a slider. Now only text fields swallow
+  keys; sliders lose focus on the next flight key.
+- Windows + NumLock: Shift held with a numpad key makes Windows send a fake Shift release,
+  which cut the afterburner during numpad pull-ups. Fake releases around numpad presses
+  are now filtered. ShiftRight is also bound.
+- Controller: afterburner moved to RT/R2 (the right thumb is on the flight stick, so A/✕
+  couldn't be reached). Cruise throttle-up is LB/L1. Bindings version 3 resets saved
+  bindings once.
+- F1 panel has a live readout: throttle state the sim sees, raw inputs, tank, boostRate,
+  climb angle, and speed change per second.
+
+## v0.1.5: throttle model and retune
+- Afterburner is now a modifier on throttle-up (W + Shift, RT + R3). Flames, meter and
+  audio only activate while both are held.
+- Controller: RT/R2 = throttle up, R3 = afterburner, L3 = camera (bindings v4).
+- The F1 readout had shown `boostRate 1`. Slider ranges came from the current value, so a
+  value dragged to 0 got a 0–1 slider after reload. Ranges now come from the defaults,
+  double-clicking a name resets it, and bad saved values fall back to defaults.
+- Found that the hidden 2200 m ceiling (−30/s) had skewed the earlier wide-loop tests (the
+  reason AB went to 130). The ceiling is now 3000 m at −20/s with a HUD warning.
+- Retune (full flight-section reset, config v6): **AB 55, brake 28**, gravity 25. The simulated
+  pilot holds W on the climb, taps AB when slow and brakes on the descent. It holds 310–317 in
+  tight, medium and wide loops with brake about 32 % and AB about 7 % of the time (clip: 31 % / 6 %).
+  Straight up: W alone −11/s; W + 0.5 s AB taps every 1.5 s +4/s; W + AB held +30/s.
+  Vertical dive with full brake: −3/s.
+
+## v0.1.6
+- Cannon: continuous fire before overheat went from ~1.6 s to 4.0 s (heat per round
+  0.055 → 0.033). Cooldown after overheating is unchanged at ~1.9 s. Config v7 resets
+  only cannonHeat.
+- Air radar: 2× diameter (radius 92 → 184 px), same 2.6 km range, heading-up.
+  - Direction of flight: forward view cone and dashed heading line, a heading readout box,
+    and a rotating compass ring with N (gold) / E / S / W.
+  - Contacts are arrows pointing their direction of travel, with ▲/▼ if more than 150 m
+    above or below you, and a ring around your lock target. Missiles aimed at you show red.
+  - The team score panel moved up to sit above the radar.
+  - Range cut to a third (2600 → 870 m). At 313 a 2-circle fight is ~350 m across, so
+    about 40 % of the scope. Contacts beyond range pin to the rim, dimmed. Range is
+    tunable in F1 → Camera → radarRange.
+
+## v0.1.7: pitch-dependent brake and afterburner
+- Brake blends from `brakeRate` (level, 55) to `brakeRateDive` (nose straight down, 45) as
+  the nose drops. AB blends from `boostRate` (level, 50) to `boostRateClimb` (nose straight
+  up, 92). Gravity 25 → 40.
+- Level brake 345 → 313 in 0.58 s (was 1.15 s). Vertical dive with full brake −5/s; 45° dive
+  with brake −20/s. Free vertical dive +36/s (was +22).
+- Straight up: W alone −26/s; W + 0.5 s AB taps every 1.5 s holds exactly; W + AB held +52/s.
+  Level AB +50/s.
+- Loops hold 310–318 at all sizes with brake about 28 % and AB about 10 % of the time.
+  Config v8 resets gravity/brake/AB only.
+
+## v0.1.8: sense of speed
+- `flight.groundSpeedScale = 1.5`: jets cover 1.5× more ground per HUD speed unit
+  (345 → 144 m/s instead of 96). Energy tuning and turn rates are untouched, and the
+  loop/brake/AB tests give identical numbers. Turn circles are 1.5× larger.
+- Scaled with it: missile speed 250 → 375 m/s, lock range 1000 → 1400 m, cannon muzzle
+  speed 1000 → 1300 m/s, cannon range 900 → 1100 m, radar range 870 → 1300 m (the
+  2-circle fight still spans ~40 % of the scope), and AI distance thresholds ×1.4.
+  Config v9.
+- City (`js/city.js`, buildings in `js/terrain.js`): a flattened 650 m-radius plateau at the
+  map centre with a street-grid ground, 178 towers (median 96 m, tallest 327 m, tallest in
+  the middle). One merged mesh with a tiling window texture and 5 rooftop masts with blinking
+  red beacons. Trees and villages are kept clear of it.
+- Towers are solid: jets crash ("hit a building"), and bullets and missiles impact them.
+  The AI probes terrain and rooftops ahead and pulls up. AI weapon switching has a 1.5 s
+  cooldown.
+
+## v0.1.9
+- Ceiling fix: the old 3000 m ceiling was only a −20/s drag, so AI (and players) boosting
+  hard could zoom well past it. Now, for every jet: above `world.ceiling` (3000 m) there is
+  no throttle-up or afterburner, the nose is pushed over (up to 55°/s by 150 m over), and
+  there is a hard cap at +200 m. Tested: W+AB held straight up peaks at 3200 m; the AI
+  furball maxed at 3142 m.
+- "AI uses ECM jammer" toggle (start screen and pause menu). Every AI carries ECM and fires
+  it when a lock passes 55 %, when locked, or when a missile is inside 1200 m. Off: enemies
+  alternate flares/ECM and wingmen carry flares. 3-min furball with it on: 11 ECM uses and
+  6 launches (locks kept getting broken). AI flare reaction distances were scaled for the
+  faster missiles (1000 / 650 m).
+- Radar range 1000 m (config v10).
+
+## v0.1.10: brake scaling
+- Brake = lerp(level 55, dive 36, diveK^0.5) × (1 + 1.0 × (speed − 330)/100 above 330).
+  The square-root blend weakens the brake quickly as the nose drops. The speed term makes
+  it bite hard when fast.
+- In loops, brake is now held about 70 % of the descent (was 59 %) to stay at 310–318.
+  A straight-down dive with full brake at 313 gains +4/s (it settles near ~340 as the
+  high-speed term kicks in); at 450 it sheds −36/s.
+- Level: 313 → 290 in 0.43 s, 450 → 313 in 1.75 s (was 2.5), 550 → 313 in 2.4 s (was 4.3).
+  Config v11 resets brakeRateDive; new keys are in F1.
+
+## v0.1.11: BF3 roll cam
+- New third-person camera (`js/rollcam.js`), chosen with "Chase camera" on the start screen
+  and pause menu (BF3 roll cam, the default, or Full chase). Tuning lives in F1 → Camera → rollCam*.
+- Headless camera test (level rolls, knife-edge turn, continuous loops, loops with rolls,
+  split-S): horizon tilt ≤ 5.4°, camera pitch ≤ 55°, jet never off screen. Max camera
+  rotation 4°/frame, which is the capped swing over the top.
+
+## v0.1.12: roll cam framing
+- Bug: in dives and pull-downs the camera stopped at its 55° pitch limit while the jet kept
+  going, so the nose or wings left the screen (test: 105–349 frames per manoeuvre had part
+  of the jet off screen).
+- More clip 4 frames (5–8 s, 22–27 s, 30–38 s): diving, the camera looks almost straight
+  down at the jet's back with the horizon out of frame. So the limit is now asymmetric:
+  55° up, 80° down.
+- Framing guard: after aiming, the jet's 7 extremities (nose, exhaust, wingtips, fin tips,
+  belly) are projected. If any is outside 86 % of the screen half-size, the aim rotates
+  toward it, the horizon re-levels, and the correction feeds back into the lag state.
+  Result: 0 off-screen frames in all 9 test manoeuvres (loops, split-S, diving turn,
+  push-over, vertical dive, rolling descents).
+
+## v0.1.13: smoother roll cam (rewrite of js/rollcam.js)
+- Two roll-dependent jerk sources removed:
+  1. Camera tilt of 6 % × sin(bank) rocked the horizon ±4.4° at the roll rate. BF3 keeps
+     it level, so the default is now 0.
+  2. The framing guard projected the wingtips, which sweep in and out as the jet rolls,
+     so it kept nudging the aim. It is now a stateless soft clamp on the jet's centre plus
+     a bounding radius (roll-invariant).
+- Every axis is now a critically damped spring (smooth velocity, not just position). The aim
+  trail is soft-limited with tanh instead of clamped, the swing-speed cap is soft, and the
+  heading target fades near vertical instead of switching at a threshold.
+- Fitted to clip 5: camera 38 m back and 8.5 m up (was 24/6.5), aim spring 1.6, boom
+  spring 4.5, aim trail up to 36°.
+- Camera test (11 manoeuvres, 60 fps and jittery 40–144 fps): pure rolls and roll reversals
+  give 0°/s camera motion (was up to 36°/s of rocking), horizon tilt 0°, 0 off-screen
+  frames. Peak camera turn in loops is 127°/s (was ~340°/s).
+
+## v0.1.14: roll cam framing back to close
+- v0.1.13's clip-5 fit (38 m back, slow aim) felt too zoomed out and let the jet roam too
+  much. Framing is back to v0.1.12 (24 m back, aim trail ≤ 14°), with the smooth
+  springs, level horizon and roll-invariant on-screen guard kept. Height is 4.5 m, so the
+  jet rests slightly below centre.
+- Spring rates were set so the lag matches the old first-order filters (boom 10, aim 5.2). The swing
+  over the top has an acceleration cap (700°/s²).
+- The on-screen radius is the wingspan from behind, blending to the length side-on, so it
+  is still roll-invariant.
+- Test: jet stays within x ±0.24, y −0.37…+0.04 of centre across all manoeuvres (v0.1.13:
+  ±0.53), 0 off-screen frames, 0°/s camera motion in pure rolls. Config v13.
+
+## v0.1.15: smoother brake, afterburner −25 %
+- Brake speed scaling is now (speed/313)² instead of "1 + (speed − 330)/100 above 330"
+  (which had a kink at 330 and no fade when slow). It's exactly 1.0 at 313, so the descent
+  balance is unchanged: loops still need brake ~70 % of the way down; 90° dive at 313 with
+  brake +3/s (was +4), 45° dive −10/s (was −11).
+- Level brake decel at 250 / 313 / 400 / 500: −31 / −47 / −73 / −109 per s. Softer when
+  slow, so braking at 313 no longer falls off a cliff; still strong when fast
+  (450 → 313 in 1.8 s, 550 → 313 in 2.5 s).
+- Brake effort eases in and out over ~0.12 s (`brakeRamp`) instead of switching instantly.
+- Afterburner −25 %: level 50 → 37.5, climb 92 → 69. Straight up with 0.5 s taps, you now
+  need one per ~1 s to hold speed (+1.7/s), not one per 1.5 s (−7.7/s). AB held +29/s (was
+  +52). In loops the tap pilot sits at 300–319 with AB ~15–19 %. Config v14.
+
+## v0.1.16: AI ECM menu
+- The "AI uses ECM jammer" checkbox became a 3-way "AI ECM jammer" setting:
+  - **Normal:** mixed flares/ECM, react to close missiles.
+  - **Jam when locked:** all AI carry ECM and jam when they're being locked.
+  - **Jam constantly (testing):** jam whenever ready and an enemy is within 2.5 km, on a 6 s cooldown.
+- 2-minute test with 3 enemies: 2 / 6 / 48 enemy jams respectively.
+- Visibility: a blinking gold "ECM" tag over jamming jets, a kill-feed line "Name [ECM JAMMING]
+  distance" for jams within 3 km, and "LOCK JAMMED" when you have missiles selected and are
+  in range.
+
+## Known gaps and next steps
+- AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
+1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag
+   (share presets via Tuning → Export JSON).
+2. AI cannon accuracy is low; most AI kills are missiles.
+3. No radial motion blur (only edge speed streaks and a vignette). A post-processing pass could add it.
+4. v0.2: Node WebSocket relay lobby (2–4 players), room codes, interpolation,
+   shooter-authoritative hits.

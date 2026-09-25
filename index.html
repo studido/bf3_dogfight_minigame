@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dogfight 313 — v0.1 prototype</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <canvas id="hud"></canvas>
+  <div id="ui">
+    <div id="start" class="screen">
+      <div class="card">
+        <h1>DOGFIGHT <span>313</span></h1>
+        <p class="sub">v0.1 prototype · single-player vs AI</p>
+        <div class="grid">
+          <label>Callsign <input id="opt-name" maxlength="14" value="Pilot"></label>
+          <label>Enemies <select id="opt-enemies"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></label>
+          <label>Wingmen <select id="opt-wing"><option>0</option><option selected>1</option><option>2</option></select></label>
+          <label>Countermeasure <select id="opt-loadout"><option value="flares">Flares</option><option value="ecm">ECM jammer</option></select></label>
+          <label><input id="opt-aimsl" type="checkbox" checked> AI uses missiles</label>
+          <label>AI ECM jammer <select id="opt-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
+          <label>Chase camera <select id="opt-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
+        </div>
+        <button id="play" class="big">FLY</button>
+        <div class="controls">
+          <div><h3>Keyboard + mouse</h3>
+            <p><b>Mouse</b> pitch / roll · <b>A D</b> yaw · <b>Arrows / Numpad</b> pitch &amp; roll</p>
+            <p><b>W</b> throttle up · <b>W + Shift</b> afterburner · <b>S</b> brake · release = back to cruise</p>
+            <p><b>LMB / Space</b> fire · <b>RMB / R</b> switch weapon (<b>1</b> gun, <b>2</b> missile) · <b>X</b> flares/ECM</p>
+            <p><b>C</b> camera · <b>V</b> look back · <b>P / Esc</b> menu · <b>F1 / `</b> tuning</p></div>
+          <div><h3>Controller</h3>
+            <p><b>Right stick</b> pitch / roll · <b>Left stick</b> yaw</p>
+            <p><b>RT / R2</b> throttle up · <b>+ R3</b> afterburner · <b>LT / L2</b> brake (analog)</p>
+            <p><b>RB</b> fire · <b>Y / △</b> switch weapon · <b>X / □</b> flares/ECM</p>
+            <p><b>L3</b> camera · <b>B / ○</b> look back · <b>Start</b> menu</p></div>
+        </div>
+        <p class="tip">Hold the speed box <b class="gold">gold (313)</b> in a turn fight. Feather <b>S</b> — the throttle springs back to cruise when you let go.</p>
+      </div>
+    </div>
+
+    <div id="pause" class="screen" style="display:none">
+      <div class="card wide">
+        <h2>PAUSED</h2>
+        <div class="grid">
+          <label><input id="p-aimsl" type="checkbox"> AI uses missiles</label>
+          <label>AI ECM jammer <select id="p-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
+          <label>Chase camera <select id="p-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
+          <label>Countermeasure <select id="p-loadout"><option value="flares">Flares</option><option value="ecm">ECM jammer</option></select></label>
+          <label>Mouse sensitivity <input id="p-sens" type="range" min="0.2" max="3" step="0.05"></label>
+          <label><input id="p-invm" type="checkbox"> Invert mouse Y</label>
+          <label><input id="p-invp" type="checkbox"> Invert stick Y</label>
+          <label>Controller flight stick <select id="p-stick"><option value="right">Right stick (yaw on left)</option><option value="left">Left stick (yaw on right)</option></select></label>
+          <label>Volume <input id="p-vol" type="range" min="0" max="1" step="0.05"></label>
+        </div>
+        <h3>Key bindings <small>click a slot, then press a key / mouse / pad button · Del clears</small></h3>
+        <div id="binds"></div>
+        <div class="row"><button id="resume" class="big">RESUME</button><button id="restart">Restart match</button><button id="resetbinds">Reset bindings</button></div>
+      </div>
+    </div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- Three.js r128 (classic build so the game runs straight from disk) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/sim.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/city.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/jet-model.js"></script>
+  <script src="js/cockpit.js"></script>
+  <script src="js/rollcam.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/tuning-panel.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
