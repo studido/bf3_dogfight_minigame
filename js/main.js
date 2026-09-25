@@ -92,7 +92,7 @@
     toast(BF.configReset || input.bindsReset ? 'Defaults updated: your old tuning/bindings were reset' : BF.configMigrated ? 'Afterburner default updated (your other tuning was kept)' : 'Click the screen to capture the mouse · F1 opens the tuning panel');
   };
   $('resume').onclick = () => setPaused(false);
-  $('restart').onclick = () => { newMatch(); setPaused(false); };
+  $('restart').onclick = () => { if (mp) endMatch(); else { newMatch(); setPaused(false); } };
   $('p-loadout').onchange = (e) => {
     me.loadout = e.target.value; me.counterReadyT = Math.max(me.counterReadyT, sim.t + 3);
     try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.loadout = me.loadout; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
@@ -172,6 +172,238 @@
     if (!document.pointerLockElement && started && !paused && !tuning.open) setPaused(true);
   });
 
+  // ---------- Online play (relay server) ----------
+  const net = new BF.Net();
+  let mp = false, netSlots = [];
+  const NET_HZ = 30;
+  let netAcc = 0;
+  const myName = () => $('opt-name').value.trim() || 'Pilot';
+  const setStatus = (t) => {
+    const inLobby = $('lobby').style.display === 'flex';
+    $(inLobby ? 'lobby-status' : 'mp-status').textContent = t;
+  };
+  $('opt-server').value = net.url;
+
+  $('mp-create').onclick = () => {
+    if (net.room) net.leave();
+    net.setUrl($('opt-server').value.trim() || BF.NET_DEFAULT_URL);
+    setStatus('Connecting…');
+    net.create(myName());
+  };
+  $('mp-join').onclick = () => {
+    const code = $('mp-code').value.trim().toUpperCase();
+    if (code.length !== 4) { setStatus('Enter the 4-letter room code'); return; }
+    if (net.room) net.leave();
+    net.setUrl($('opt-server').value.trim() || BF.NET_DEFAULT_URL);
+    setStatus('Connecting…');
+    net.join(code, myName());
+  };
+
+  const DIFF_LABEL = { veryEasy: 'very easy', easy: 'easy', medium: 'medium', hard: 'hard', extreme: 'extremely hard' };
+  function lobbySettings() {
+    return {
+      enemies: +$('lob-enemies').value, aiDiff: $('lob-aidiff').value,
+      aiMissiles: $('lob-aimsl').checked, aiEcm: $('lob-aiecm').value,
+      tune: { flight: cfg.flight, weapons: cfg.weapons, countermeasures: cfg.countermeasures },
+    };
+  }
+  function pushLobbySettings() { if (net.isHost) net.setSettings(lobbySettings()); }
+  for (const id of ['lob-enemies', 'lob-aidiff', 'lob-aimsl', 'lob-aiecm']) $(id).onchange = pushLobbySettings;
+
+  function describeSettings(d) {
+    d = d || {};
+    return `AI: ${d.enemies ?? 0} ${DIFF_LABEL[d.aiDiff] || 'medium'} enemies · missiles ${d.aiMissiles === false ? 'off' : 'on'} · ECM ${d.aiEcm || 'mixed'}`;
+  }
+  function renderLobby() {
+    const room = net.room;
+    if (!room) return;
+    $('lob-code').textContent = room.code;
+    const meP = room.players.find((p) => p.id === net.myId);
+    $('lobby-players').innerHTML = room.players.map((p) =>
+      `<li>${p.name}${p.host ? ' <b>[HOST]</b>' : ''}${p.ready ? ' <b>[READY]</b>' : ''}${p.connected ? '' : ' [dropped]'}</li>`).join('');
+    $('lob-ready').style.display = net.isHost ? 'none' : '';
+    $('lob-ready').textContent = meP && meP.ready ? 'NOT READY' : 'READY';
+    $('lob-start').style.display = net.isHost ? '' : 'none';
+    $('lobby-hostopts').style.display = net.isHost ? 'grid' : 'none';
+    if (!net.isHost) $('lobby-status').textContent = 'Waiting for the host to start.';
+  }
+
+  net.on('joined', () => {
+    setStatus('');
+    if (mp && started) { toast('Reconnected'); return; }
+    $('start').style.display = 'none';
+    $('lobby').style.display = 'flex';
+    renderLobby();
+    pushLobbySettings();
+    if (!net.isHost && net.room.settings) $('lobby-hostnote').textContent = describeSettings(net.room.settings);
+  });
+  net.on('roster', renderLobby);
+  net.on('settings', (m) => { if (!net.isHost) $('lobby-hostnote').textContent = describeSettings(m.d); });
+  net.on('error', (m) => setStatus(m.msg || m.code));
+  net.on('reconnectWait', () => setStatus('Connection lost — retrying…'));
+  net.on('close', () => { if (!started) setStatus('Disconnected'); else toast('Connection dropped — reconnecting…'); });
+
+  $('lob-ready').onclick = () => {
+    const meP = net.room && net.room.players.find((p) => p.id === net.myId);
+    net.setReady(!(meP && meP.ready));
+  };
+  $('lob-start').onclick = () => net.start((Math.random() * 2 ** 31) | 0);
+  $('lob-leave').onclick = () => { net.leave(); $('lobby').style.display = 'none'; $('start').style.display = 'flex'; setStatus(''); };
+
+  net.on('ended', (m) => {
+    if (started && mp) endMatch();
+    else { $('lobby').style.display = 'none'; $('start').style.display = 'flex'; }
+    toast('Match ended: ' + m.reason);
+  });
+  net.on('start', (m) => startMpMatch(m.seed));
+  net.on('from', (m) => {
+    if (!mp || !started || !sim) return;
+    if (m.k === 'state') applyNetState(m.from, m.d && m.d.jets);
+    else if (m.k === 'event') handleNetEvent(m.from, m.d);
+  });
+
+  function endMatch() {
+    mp = false; started = false; netSlots = [];
+    net.leave();
+    paused = true;
+    $('pause').style.display = 'none';
+    $('lobby').style.display = 'none';
+    $('start').style.display = 'flex';
+    $('restart').textContent = 'Restart match';
+    audio.suspend(true);
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  function startMpMatch(seed) {
+    audio.init();
+    const d = (net.room && net.room.settings) || {};
+    newMatchMp(seed, d);
+    mp = true; started = true;
+    $('lobby').style.display = 'none';
+    $('start').style.display = 'none';
+    $('restart').textContent = 'Leave match';
+    setPaused(false);
+  }
+
+  // All clients build the same jets in the same order: humans in join order, then
+  // host-run AI enemies. Slot = index in netSlots; jet ids therefore match on every machine.
+  function newMatchMp(seed, d) {
+    while (scene.children.length) scene.remove(scene.children[0]);
+    models.clear();
+    if (d.tune) {
+      if (d.tune.flight) Object.assign(cfg.flight, d.tune.flight);
+      if (d.tune.weapons) Object.assign(cfg.weapons, d.tune.weapons);
+      if (d.tune.countermeasures) Object.assign(cfg.countermeasures, d.tune.countermeasures);
+    }
+    BF.applyAiDifficulty(cfg, d.aiDiff || 'medium');
+    cfg.ai.useMissiles = d.aiMissiles !== false;
+    cfg.ai.ecmMode = d.aiEcm || 'off';
+    sim = new BF.Sim(cfg, seed);
+    world = BF.buildWorld(scene, sim.terrain, cfg);
+    effects = new BF.Effects(scene);
+    ais = [];
+    netSlots = [];
+    const players = net.room ? net.room.players : [];
+    for (const p of players) {
+      const j = sim.addJet(0, p.name, false);
+      j.ownerNet = p.id; j.remote = p.id !== net.myId; j.netBuf = [];
+      if (!j.remote) { me = j; j.loadout = $('opt-loadout').value; j.counterReadyT = sim.t + 2; }
+      netSlots.push(j);
+    }
+    const nAi = Math.max(0, Math.min(4, +(d.enemies ?? 3)));
+    for (let i = 0; i < nAi; i++) {
+      const j = sim.addJet(1, ENEMY[i % ENEMY.length], true);
+      j.ownerNet = net.room.hostId; j.remote = !net.isHost; j.netBuf = [];
+      j.loadout = cfg.ai.ecmMode !== 'off' ? 'ecm' : (i % 2 ? 'ecm' : 'flares');
+      if (net.isHost) ais.push(new BF.AIPilot(sim, j));
+      netSlots.push(j);
+    }
+    for (const j of sim.jets) {
+      const mdl = BF.buildJetModel(j.team);
+      scene.add(mdl); models.set(j.id, mdl);
+      j.prevPos = j.pos.clone(); j.prevQuat = j.quat.clone();
+    }
+    sim.events.length = 0;
+    camQ.copy(me.quat); camPos.copy(me.pos);
+    $('p-loadout').value = me.loadout; $('p-aimsl').checked = cfg.ai.useMissiles; $('p-aidiff').value = cfg.ai.difficulty || 'medium'; $('p-aiecm').value = cfg.ai.ecmMode || 'off'; $('p-camstyle').value = cfg.camera.style;
+  }
+
+  function slotOf(j) { return j ? netSlots.indexOf(j) : -1; }
+
+  function sendNetState() {
+    const jets = [];
+    for (let s = 0; s < netSlots.length; s++) {
+      const j = netSlots[s];
+      if (j.remote) continue;
+      const flags = (j.alive ? 1 : 0) | (j.boosting ? 2 : 0) | (j.firing ? 4 : 0);
+      jets.push([s, Math.round(j.pos.x), Math.round(j.pos.y), Math.round(j.pos.z),
+        +j.quat.x.toFixed(3), +j.quat.y.toFixed(3), +j.quat.z.toFixed(3), +j.quat.w.toFixed(3),
+        Math.round(j.speed), +j.health.toFixed(1), flags, j.weapon === 'missile' ? 1 : 0, j.missiles]);
+    }
+    net.sendState({ jets });
+  }
+
+  function applyNetState(fromId, jets) {
+    if (!jets) return;
+    const at = performance.now() * 0.001;
+    for (const a of jets) {
+      const j = netSlots[a[0]];
+      if (!j || !j.remote || j.ownerNet !== fromId) continue;
+      const [, x, y, z, qx, qy, qz, qw, spd, hp, flags, wpn, msl] = a;
+      (j.netBuf = j.netBuf || []).push({ at, x, y, z, qx, qy, qz, qw });
+      if (j.netBuf.length > 12) j.netBuf.shift();
+      j.pos.set(x, y, z);
+      j.quat.set(qx, qy, qz, qw).normalize();
+      BF.forwardOf(j.quat, j.vel).multiplyScalar(spd * BF.KMH * (cfg.flight.groundSpeedScale || 1));
+      j.speed = spd; j.health = hp; j.missiles = msl; j.weapon = wpn ? 'missile' : 'cannon';
+      const wasAlive = j.alive;
+      j.alive = !!(flags & 1); j.boosting = !!(flags & 2); j.netFiring = !!(flags & 4);
+      if (!wasAlive && j.alive) sim.events.push({ type: 'spawn', jet: j.id });
+    }
+  }
+
+  // Outbound: report what my sim decided about jets owned by others.
+  function forwardEvent(ev) {
+    const src = ev.jet != null ? sim.jet(ev.jet) : null;
+    if (ev.type === 'hit' && ev.remote && src) {
+      net.sendEvent({
+        kind: 'hit', jetSlot: slotOf(src), bySlot: slotOf(sim.jet(ev.by)),
+        dmg: ev.kind === 'missile' ? cfg.weapons.missileDamage : cfg.weapons.cannonDamage,
+        w: ev.kind === 'missile' ? 'm' : 'c',
+      });
+    } else if (ev.type === 'kill' && src && !src.remote) {
+      net.sendEvent({ kind: 'kill', jetSlot: slotOf(src), bySlot: ev.by != null ? slotOf(sim.jet(ev.by)) : -1, how: ev.how });
+    } else if ((ev.type === 'flares' || ev.type === 'ecm') && src && !src.remote) {
+      net.sendEvent({ kind: 'cm', jetSlot: slotOf(src), what: ev.type });
+    } else if (ev.type === 'missileLaunch' && src && !src.remote) {
+      net.sendEvent({ kind: 'msl', jetSlot: slotOf(src), targetSlot: ev.target != null ? slotOf(sim.jet(ev.target)) : -1 });
+    }
+  }
+
+  // Inbound: the owner of a jet applies damage/kills; visuals replicate everywhere.
+  function handleNetEvent(fromId, d) {
+    if (!d || d.jetSlot == null) return;
+    const j = netSlots[d.jetSlot];
+    if (!j) return;
+    const byJet = d.bySlot != null && d.bySlot >= 0 ? netSlots[d.bySlot] : null;
+    switch (d.kind) {
+      case 'hit':
+        if (j.remote) break; // not mine; that owner applies it
+        sim.applyNetDamage(j.id, d.dmg, byJet ? byJet.id : null, d.w === 'm' ? 'missile' : 'cannon');
+        break;
+      case 'kill':
+        if (!j.remote) break; // mine; my sim already announced it
+        sim.applyNetKill(j.id, byJet ? byJet.id : null, d.how);
+        break;
+      case 'cm':
+        if (j.remote) sim.applyRemoteCm(j, d.what);
+        break;
+      case 'msl':
+        if (j.remote) sim.launchRemoteMissile(j, d.targetSlot != null && d.targetSlot >= 0 ? netSlots[d.targetSlot].id : undefined);
+        break;
+    }
+  }
+
   // ---------- Events -> effects/audio/HUD ----------
   const howText = { cannon: 'cannon', missile: 'heat-seeker', crash: 'crashed', building: 'hit a building', boundary: 'deserted', collision: 'mid-air' };
   function handleEvents() {
@@ -198,6 +430,7 @@
         if (j && j.team !== me.team && me.weapon === 'missile' && d < cfg.weapons.missileLockRange * 1.5) hud.flashMsg('LOCK JAMMED', '#ffd84a', 1.5);
       }
       if (ev.type === 'flares' && ev.jet === me.id && sim.missiles.some((m) => m.target && m.target.flare && sim.flares.includes(m.target.flare) && m.target.flare.owner === me.id)) hud.flashMsg('MISSILE DECOYED', '#8dff7a', 1.5);
+      if (mp) forwardEvent(ev);
     }
     sim.events.length = 0;
   }
@@ -267,6 +500,11 @@
         acc -= STEP;
       }
       handleEvents();
+      if (mp && net.room) {
+        netAcc += dt;
+        const stepT = 1 / NET_HZ;
+        while (netAcc >= stepT) { netAcc -= stepT; sendNetState(); }
+      }
     }
     const alpha = paused ? 1 : acc / STEP;
     // Sync models (interpolated)
@@ -274,6 +512,27 @@
       const m = models.get(j.id);
       m.visible = j.alive;
       if (!j.alive) continue;
+      if (j.remote) {
+        const b = j.netBuf;
+        if (b && b.length) {
+          const rt = now * 0.001 - 0.12;
+          let i = 0;
+          while (i < b.length - 1 && b[i + 1].at <= rt) i++;
+          const a = b[i], nxt = b[Math.min(i + 1, b.length - 1)];
+          const k = nxt.at > a.at ? BF.clamp((rt - a.at) / (nxt.at - a.at), 0, 1) : 1;
+          m.position.set(BF.lerp(a.x, nxt.x, k), BF.lerp(a.y, nxt.y, k), BF.lerp(a.z, nxt.z, k));
+          tmpQ.set(a.qx, a.qy, a.qz, a.qw); iQuat.set(nxt.qx, nxt.qy, nxt.qz, nxt.qw);
+          m.quaternion.slerpQuaternions(tmpQ, iQuat, k);
+        } else { m.position.copy(j.pos); m.quaternion.copy(j.quat); }
+        m.userData.setThrottle(j.netFiring ? 0.8 : 0.4, j.boosting);
+        m.userData.missiles.forEach((mm2, i2) => (mm2.visible = i2 < j.missiles));
+        if (j.netFiring && j.weapon === 'cannon') {
+          j.netFireCd = (j.netFireCd || 0) - dt;
+          if (j.netFireCd < -0.2) j.netFireCd = 0;
+          while (j.netFireCd <= 0) { j.netFireCd += 1 / cfg.weapons.cannonRps; sim.fireRound(j, true); }
+        } else j.netFireCd = 0;
+        continue;
+      }
       m.position.lerpVectors(j.prevPos, j.pos, alpha);
       m.quaternion.slerpQuaternions(j.prevQuat, j.quat, alpha);
       const thr = j.ctl.brake > 0.05 ? 0 : j.ctl.throttleUp > 0.05 ? 0.8 : 0.4;

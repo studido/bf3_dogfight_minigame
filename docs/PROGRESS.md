@@ -289,6 +289,64 @@ browser with WebGL, so the first real render happens on the user's machine.
 - The single/paired-missile test saturates from Medium up (Medium 1/30 hits, Hard and Extremely
   hard 0/30). Lone missiles vs flares are too easy to dodge to separate them.
 
+## v0.1.23: hard/extremely-hard BFM (dogfighting overhaul)
+- Hard and Extremely hard now fly basic fighter manoeuvres instead of pure lead-pursuit
+  (all gated on new `bfm`/`burst` preset flags; veryEasy/easy/medium are untouched):
+  - **Lag/pure pursuit switching**: tracks line-of-sight rate vs the target; while the
+    target is crossing fast, aims behind its flight path (lag pursuit, keeps energy and
+    stops nose-chasing the turn circle), then converts to lead pursuit once the LOS
+    settles (`lagK`/`maxLag` per difficulty).
+  - **Off-angle merge entry**: when approaching head-on from 1.4–4.2 km, aims for a point
+    offset to one side of the target (150–650 m) so merges open at an angle instead of
+    neutral head-ons; the side re-rolls after each close pass.
+  - **Overshoot control**: inside `overDist` on the target's six with closure past
+    `overClosure`, pulls up and brakes (~1 s) to avoid blowing through, with a 3 s
+    re-arm cooldown.
+  - **Approach speed discipline**: the 313 PD controller now also runs during the attack
+    run inside 1.6 km, so they arrive at corner speed instead of cruising in at 345.
+  - **Gun burst discipline** (`burst`): fires until ~55% heat, holds until ~15%, instead
+    of overheating mid-solution.
+- New headless test: `node test/ai-furball.js [seconds] [levels]` (minimal THREE math
+  stub, runs the real sim + AI). 3-min furballs, seeds 1337/7/42:
+
+  | Level | Gun time (of alive ticks) | Avg miss from 313 while turning |
+  |---|---|---|
+  | Medium | 7.3–9.8 % | 21–43 |
+  | Hard | 8.1–13.6 % | 13–21 |
+  | Extremely hard | 9.1–15.1 % | 5–8 |
+
+## v0.1.24: multiplayer over the relay server (v0.2 milestone)
+Lobby + full client netcode against `minigame_relay_server` (see that repo's
+PROTOCOL.md). Default server: wss://bf3-dogfight-relay.fly.dev (editable on the
+start screen, saved to localStorage).
+
+- **Lobby**: HOST ONLINE / JOIN ONLINE on the start screen; lobby shows the room code,
+  player list (host/ready/dropped), host-only AI options (count, difficulty, missiles,
+  ECM); host also shares the current flight/weapons/countermeasures tuning as settings.
+  Host presses START MATCH → everyone launches on the same broadcast seed/tuning.
+- **Ownership model**: every client simulates only its own jets. Humans join in roster
+  order → jet creation order is identical on every machine, so slot indices line up.
+  Host additionally runs the AI pilots and streams them.
+- **Sync**: own jets broadcast 30 Hz (pos/quat/speed/health/flags/weapon/missiles);
+  remote jets are rendered ~120 ms in the past with snapshot interpolation; gameplay
+  (locks, bullet tests, missile PD) uses the latest received pose.
+- **Combat**: shooter-authoritative guns (my sim reports hits on your jets, you apply
+  the damage to your own sim), missiles flown/reported by the launcher and replicated
+  visually elsewhere; flares/ECM replicate so decoys/jams converge on all machines;
+  kills are announced by the victim's owner for the shared kill feed; server connection
+  loss shows a reconnect notice and auto-resumes the room slot (~1 min grace).
+- **sim.js**: `j.remote` gates flight/weapons/CM/respawn (network-owned), visual-only
+  tracer bullets/missiles that never damage, `applyNetDamage/applyNetKill/
+  applyRemoteCm/launchRemoteMissile` entry points, local collision kills apply only to
+  non-remote jets.
+- Tests: `test/mp-sim.js` (6 tests: remote gates, remote-hit reporting, net damage/
+  kill, visual missiles, remote CM). `test/three-stub.js` now holds the shared THREE
+  math stub used by both headless test harnesses.
+
+Still open for netcode polish: adaptive send rate when engaged, per-player ping in the
+lobby, host migration, pause-menu tuning changes mid-match (one diverging client can
+desync tuning — friends' rule: don't).
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

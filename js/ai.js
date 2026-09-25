@@ -5,6 +5,7 @@ window.BF = window.BF || {};
 (() => {
   const V3 = THREE.Vector3;
   const inv = new THREE.Quaternion(), local = new V3(), desired = new V3(), tmp = new V3();
+  const losV = new V3(), aimV = new V3(), rgtV = new V3(), closV = new V3();
 
   // Difficulty presets. "medium" is exactly the AI as it was before difficulty existed.
   //   evadeRange: missile distance at which they start evading
@@ -18,8 +19,8 @@ window.BF = window.BF || {};
     veryEasy: { aimError: 4.0, fireCone: 2.5, skill: 0.2, reactionTime: 1.3, flareChance: 0.35, evadeRange: 450, flareRange: 350, breakTurn: 0, sloppy: 0.5, speedMode: 'bang', defensive: false },
     easy:     { aimError: 2.6, fireCone: 3.0, skill: 0.5, reactionTime: 0.8, flareChance: 0.6, evadeRange: 750, flareRange: 550, breakTurn: 0.6, sloppy: 0.2, speedMode: 'bang', defensive: false },
     medium:   { aimError: 1.6, fireCone: 3.5, skill: 0.8, reactionTime: 0.45, flareChance: 0.8, evadeRange: 1000, flareRange: 650, breakTurn: 1, sloppy: 0, speedMode: 'bang', defensive: false },
-    hard:     { aimError: 1.3, fireCone: 3.7, skill: 0.9, reactionTime: 0.32, flareChance: 0.88, evadeRange: 1150, flareRange: 650, breakTurn: 1, speedMode: 'pd', pdNoise: 14, pdDeadband: 3, pdLead: 0.5, sloppy: 0.28, smartBreak: true, defensive: false },
-    extreme:  { aimError: 1.0, fireCone: 4.0, skill: 0.95, reactionTime: 0.22, flareChance: 0.96, evadeRange: 1400, flareRange: 700, breakTurn: 1, sloppy: 0, speedMode: 'pd', pdNoise: 6, pdDeadband: 1.5, pdLead: 0.8, smartBreak: true, defensive: true },
+    hard:     { aimError: 1.3, fireCone: 3.7, skill: 0.9, reactionTime: 0.32, flareChance: 0.88, evadeRange: 1150, flareRange: 650, breakTurn: 1, speedMode: 'pd', pdNoise: 14, pdDeadband: 3, pdLead: 0.5, sloppy: 0.28, smartBreak: true, defensive: false, bfm: true, burst: true, lagK: 0.9, maxLag: 1.0, overDist: 230, overClosure: 22 },
+    extreme:  { aimError: 1.0, fireCone: 4.0, skill: 0.95, reactionTime: 0.22, flareChance: 0.96, evadeRange: 1400, flareRange: 700, breakTurn: 1, sloppy: 0, speedMode: 'pd', pdNoise: 6, pdDeadband: 1.5, pdLead: 0.8, smartBreak: true, defensive: true, bfm: true, burst: true, lagK: 1.2, maxLag: 1.4, overDist: 280, overClosure: 15 },
   };
   BF.applyAiDifficulty = (cfg, level) => {
     const p = BF.AI_LEVELS[level] || BF.AI_LEVELS.medium;
@@ -31,6 +32,8 @@ window.BF = window.BF || {};
       this.sim = sim; this.jet = jet; this.targetId = null; this.retargetT = 0;
       this.noise = new V3(); this.noiseT = 0; this.reactT = 0; this.missileDelay = 0;
       this.jinkT = 0; this.jinkDir = 1;
+      this.prevLos = new V3(); this.prevLosSet = false; this.losRate = 0;
+      this.entrySide = null; this.overT = 0; this.overCd = 0; this.heatHold = false;
     }
 
     pickTarget() {
@@ -72,10 +75,37 @@ window.BF = window.BF || {};
       if (tgt && tgt.alive) {
         tmp.subVectors(tgt.pos, j.pos); dist = tmp.length();
         const lead = BF.clamp(dist / sim.cfg.weapons.cannonSpeed, 0, 1.2);
-        desired.copy(tgt.pos).addScaledVector(tgt.vel, dist < 1400 ? lead : 0).sub(j.pos).normalize().add(this.noise).normalize();
-        angleOff = fwd.angleTo(desired);
-        mode = 'attack';
-      }
+        if (A.bfm) {
+          if (this.entrySide == null) this.entrySide = sim.rand() < 0.5 ? -1 : 1;
+          losV.subVectors(tgt.pos, j.pos).normalize();
+          this.losRate = BF.damp(this.losRate || 0, this.prevLosSet ? losV.angleTo(this.prevLos) / Math.max(dt, 1e-3) : 0, 6, dt);
+          this.prevLos.copy(losV); this.prevLosSet = true;
+          const tgtFwd = BF.forwardOf(tgt.quat, closV);
+          const aspect = tgtFwd.dot(losV); // +1: target flying away from us; -1: head-on
+          const closure = tmp.subVectors(j.vel, tgt.vel).dot(losV);
+          aimV.copy(tgt.pos);
+          if (aspect < -0.2 && dist > 1400 && dist < 4200) {
+            aimV.addScaledVector(BF.rightOf(tgt.quat, rgtV), this.entrySide * BF.clamp(dist * 0.3, 150, 650));
+          } else if (dist < 400) this.entrySide = sim.rand() < 0.5 ? -1 : 1;
+          const lagT = BF.clamp(this.losRate * (A.lagK ?? 1), 0, A.maxLag ?? 1.2);
+          aimV.addScaledVector(tgt.vel, lead - lagT);
+          desired.subVectors(aimV, j.pos).normalize().add(this.noise).normalize();
+          angleOff = fwd.angleTo(desired);
+          mode = 'attack';
+          if (this.overCd > 0) this.overCd -= dt;
+          if (this.overT > 0) this.overT -= dt;
+          else if (this.overCd <= 0 && dist < (A.overDist ?? 260) && aspect > 0.5 && closure > (A.overClosure ?? 10)) { this.overT = 1.0; this.overCd = 3; }
+          if (this.overT > 0) {
+            desired.copy(fwd).multiplyScalar(0.4).addScaledVector(BF.upOf(j.quat, rgtV), 1).normalize();
+            angleOff = fwd.angleTo(desired);
+            mode = 'overshoot';
+          }
+        } else {
+          desired.copy(tgt.pos).addScaledVector(tgt.vel, dist < 1400 ? lead : 0).sub(j.pos).normalize().add(this.noise).normalize();
+          angleOff = fwd.angleTo(desired);
+          mode = 'attack';
+        }
+      } else { this.prevLosSet = false; this.losRate = 0; this.overT = 0; this.overCd = 0; }
 
       // Missile evasion
       const th = sim.threatsTo(j);
@@ -165,8 +195,9 @@ window.BF = window.BF || {};
       if (this.prevSpeed != null) this.dvF = BF.damp(this.dvF || 0, (s - this.prevSpeed) / Math.max(dt, 1e-3), 8, dt);
       this.prevSpeed = s;
       if (mode === 'pullup') { c.throttleUp = 1; if (s < 300) c.boost = 1; }
+      else if (this.overT > 0) c.brake = 0.8;
       else if (this.lapsing) { /* not managing speed right now */ }
-      else if (turning && A.speedMode === 'pd') {
+      else if ((turning || (A.bfm && mode === 'attack' && dist < 1600)) && A.speedMode === 'pd') {
         // Aim at 313 (with a slowly wandering small error, so it isn't perfect) and act on
         // where speed is heading: u = error + 0.8 s x rate of change.
         this.spdNoiseT = (this.spdNoiseT ?? 0) - dt;
@@ -192,7 +223,13 @@ window.BF = window.BF || {};
         const stayGuns = j.weapon === 'cannon' && dist < 1100 && angleOff < 30 * BF.DEG; // hysteresis
         const want = A.useMissiles !== false && j.missiles > 0 && ((!closeGuns && !stayGuns) || lockInProgress) ? 'missile' : 'cannon';
         if (want !== j.weapon && sim.t - (this.lastSwitch || -9) > 1.5) { c.selectWeapon = want; this.lastSwitch = sim.t; }
-        if (j.weapon === 'cannon' && gunsSolution) c.fire = true;
+        if (j.weapon === 'cannon' && gunsSolution) {
+          if (A.burst) {
+            if (j.cannonHeat > 0.55) this.heatHold = true;
+            else if (j.cannonHeat < 0.15) this.heatHold = false;
+            if (!this.heatHold) c.fire = true;
+          } else c.fire = true;
+        }
         if (j.weapon === 'missile' && j.lock.locked && dist < W.missileLockRange * 0.95) {
           this.missileDelay += dt;
           if (this.missileDelay > 0.4 + sim.rand() * 0.6 && !j.prevFire) { c.fire = true; this.missileDelay = 0; }

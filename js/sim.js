@@ -61,6 +61,9 @@ window.BF = window.BF || {};
     step(dt) {
       this.t += dt;
       for (const j of this.jets) {
+        // Remote jets belong to another client: no flight, weapons, countermeasures
+        // or respawns here — their owner's machine simulates them and streams state.
+        if (j.remote) continue;
         if (!j.alive) {
           j.respawnT -= dt;
           if (j.respawnT <= 0) this.spawn(j);
@@ -228,7 +231,7 @@ window.BF = window.BF || {};
       }
     }
 
-    fireRound(j) {
+    fireRound(j, visualOnly) {
       const W = this.cfg.weapons, r = this.rand;
       const fwd = BF.forwardOf(j.quat, new V3());
       const s = W.cannonSpread * BF.DEG;
@@ -237,7 +240,7 @@ window.BF = window.BF || {};
         .addScaledVector(BF.upOf(j.quat, tmpV2), (r() - 0.5) * 2 * s).normalize();
       const pos = j.pos.clone().addScaledVector(fwd, 8);
       const vel = dir.multiplyScalar(W.cannonSpeed).add(j.vel);
-      this.bullets.push({ owner: j.id, team: j.team, pos, vel, life: W.cannonRange / W.cannonSpeed });
+      this.bullets.push({ owner: j.id, team: j.team, pos, vel, life: W.cannonRange / W.cannonSpeed, visualOnly });
       this.events.push({ type: 'shot', jet: j.id });
     }
 
@@ -255,6 +258,9 @@ window.BF = window.BF || {};
           const t = BF.clamp(toC.dot(seg) / len2, 0, 1);
           const dx = b.pos.x + seg.x * t - j.pos.x, dy = b.pos.y + seg.y * t - j.pos.y, dz = b.pos.z + seg.z * t - j.pos.z;
           if (dx * dx + dy * dy + dz * dz < R2) {
+            if (b.visualOnly) return false; // another client's tracer; its owner reports the real hit
+            // Victim jet is owned by another client: report the hit, they apply the damage.
+            if (j.remote) { this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: j.pos.clone(), kind: 'cannon', remote: true }); return false; }
             this.damage(j, W.cannonDamage, b.owner, 'cannon');
             this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: j.pos.clone(), kind: 'cannon' });
             return false;
@@ -335,8 +341,11 @@ window.BF = window.BF || {};
           for (const j of this.jets) {
             if (!j.alive || j.id === m.owner || (owner && owner.team === j.team)) continue;
             if (j.pos.distanceTo(m.pos) < W.missileProximity) {
-              this.damage(j, W.missileDamage, m.owner, 'missile');
               this.events.push({ type: 'explode', pos: m.pos.clone(), size: 1, missile: m.id });
+              if (!m.visual) {
+                if (j.remote) this.events.push({ type: 'hit', jet: j.id, by: m.owner, pos: j.pos.clone(), kind: 'missile', remote: true });
+                else this.damage(j, W.missileDamage, m.owner, 'missile');
+              }
               return false;
             }
           }
@@ -361,18 +370,7 @@ window.BF = window.BF || {};
           this.events.push({ type: 'ecm', jet: j.id });
         } else {
           j.counterReadyT = this.t + C.flareCooldown;
-          const fl = [];
-          const up = BF.upOf(j.quat, new V3()), right = BF.rightOf(j.quat, new V3());
-          for (let i = 0; i < C.flareCount; i++) {
-            const side = i % 2 ? 1 : -1, r = this.rand;
-            const vel = j.vel.clone().multiplyScalar(0.35)
-              .addScaledVector(right, side * (18 + r() * 14)).addScaledVector(up, -8 - r() * 10);
-            const f = { id: this.nextId++, owner: j.id, pos: j.pos.clone(), vel, life: C.flareBurn + r() * 0.8, delay: i * 0.08 };
-            this.flares.push(f); fl.push(f);
-          }
-          // Every missile chasing this jet goes for a flare.
-          for (const m of this.missiles) if (m.target === j.id) { m.target = { flare: fl[(this.rand() * fl.length) | 0] }; this.events.push({ type: 'missileDecoyed', missile: m.id }); }
-          this.breakLocksOn(j);
+          this.flareBurst(j);
           this.events.push({ type: 'flares', jet: j.id });
         }
       }
@@ -380,6 +378,22 @@ window.BF = window.BF || {};
         j.ecmPuffT -= dt;
         if (j.ecmPuffT <= 0) { j.ecmPuffT = 0.12; this.events.push({ type: 'ecmPuff', pos: j.pos.clone(), vel: j.vel.clone() }); }
       }
+    }
+
+    flareBurst(j) {
+      const C = this.cfg.countermeasures, fl = [];
+      const up = BF.upOf(j.quat, new V3()), right = BF.rightOf(j.quat, new V3());
+      for (let i = 0; i < C.flareCount; i++) {
+        const side = i % 2 ? 1 : -1, r = this.rand;
+        const vel = j.vel.clone().multiplyScalar(0.35)
+          .addScaledVector(right, side * (18 + r() * 14)).addScaledVector(up, -8 - r() * 10);
+        const f = { id: this.nextId++, owner: j.id, pos: j.pos.clone(), vel, life: C.flareBurn + r() * 0.8, delay: i * 0.08 };
+        this.flares.push(f); fl.push(f);
+      }
+      // Every missile chasing this jet goes for a flare.
+      for (const m of this.missiles) if (m.target === j.id) { m.target = { flare: fl[(this.rand() * fl.length) | 0] }; this.events.push({ type: 'missileDecoyed', missile: m.id }); }
+      this.breakLocksOn(j);
+      return fl;
     }
 
     updateFlares(dt) {
@@ -394,7 +408,10 @@ window.BF = window.BF || {};
     checkJetCollisions() {
       for (let a = 0; a < this.jets.length; a++) for (let b = a + 1; b < this.jets.length; b++) {
         const A = this.jets[a], B = this.jets[b];
-        if (A.alive && B.alive && A.pos.distanceToSquared(B.pos) < 16) { this.kill(A, B.id, 'collision'); this.kill(B, A.id, 'collision'); }
+        if (A.alive && B.alive && A.pos.distanceToSquared(B.pos) < 16) {
+          if (!A.remote) this.kill(A, B.id, 'collision');
+          if (!B.remote) this.kill(B, A.id, 'collision');
+        }
       }
     }
 
@@ -417,6 +434,35 @@ window.BF = window.BF || {};
       for (const m of this.missiles) if (m.target === j.id) m.target = null;
       this.events.push({ type: 'kill', jet: j.id, by: byId, how, pos: j.pos.clone(), vel: j.vel.clone() });
     }
+
+    // ---------------- Multiplayer entry points (relay-server clients) ----------------
+    // A missile launched by a remote player: simulated locally for visuals and decoys,
+    // but it never damages anything — the real impact is reported by the shooter's sim.
+    launchRemoteMissile(j, targetId) {
+      const fwd = BF.forwardOf(j.quat, new V3());
+      const m = {
+        id: this.nextId++, owner: j.id, target: typeof targetId === 'number' ? targetId : null,
+        pos: j.pos.clone().addScaledVector(BF.upOf(j.quat, tmpV), -1.5), dir: fwd,
+        speed: j.vel.length(), life: this.cfg.weapons.missileLife, armed: 0.25, visual: true,
+      };
+      this.missiles.push(m);
+      this.events.push({ type: 'missileLaunch', jet: j.id, missile: m.id, target: m.target });
+      return m;
+    }
+
+    applyRemoteCm(j, kind) {
+      if (kind === 'ecm') {
+        j.ecmUntil = this.t + this.cfg.countermeasures.ecmDuration; j.ecmPuffT = 0;
+        this.breakLocksOn(j);
+        this.events.push({ type: 'ecm', jet: j.id });
+      } else {
+        this.flareBurst(j);
+        this.events.push({ type: 'flares', jet: j.id });
+      }
+    }
+
+    applyNetDamage(id, amt, byId, kind) { const j = this.jet(id); if (j) this.damage(j, amt, byId, kind); }
+    applyNetKill(id, byId, how) { const j = this.jet(id); if (j && j.alive) this.kill(j, byId, how); }
 
     // Snapshot for HUD / future networking.
     threatsTo(j) {

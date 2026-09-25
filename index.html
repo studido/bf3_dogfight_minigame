@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dogfight 313 — v0.1 prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=0.1.22">
+  <link rel="stylesheet" href="css/style.css?v=0.1.24">
 </head>
 <body>
   <canvas id="gl"></canvas>
@@ -25,6 +25,13 @@
           <label>Chase camera <select id="opt-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
         </div>
         <button id="play" class="big">FLY</button>
+        <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button id="mp-create">HOST ONLINE</button>
+          <input id="mp-code" maxlength="4" placeholder="CODE" style="width:70px;text-transform:uppercase;text-align:center">
+          <button id="mp-join">JOIN ONLINE</button>
+          <input id="opt-server" placeholder="server (wss://...)" style="flex:1;min-width:200px;font-size:11px">
+        </div>
+        <div id="mp-status" style="font-size:11px;color:#9ab;margin-top:4px;min-height:14px"></div>
         <div class="controls">
           <div><h3>Keyboard + mouse</h3>
             <p><b>Mouse</b> pitch / roll · <b>A D</b> yaw · <b>Arrows / Numpad</b> pitch &amp; roll</p>
@@ -55,7 +62,27 @@
           <label><input id="p-invp" type="checkbox"> Invert stick Y</label>
           <label>Controller flight stick <select id="p-stick"><option value="right">Right stick (yaw on left)</option><option value="left">Left stick (yaw on right)</option></select></label>
           <label>Volume <input id="p-vol" type="range" min="0" max="1" step="0.05"></label>
-          <label><input id="p-flighthud" type="checkbox" checked> Speed &amp; altitude HUD</label>
+          <lalobby" class="screen" style="display:none">
+      <div class="card">
+        <h2>LOBBY&nbsp;&nbsp;<span id="lob-code" class="gold"></span></h2>
+        <div id="lobby-status" style="font-size:12px;color:#9ab;margin-bottom:8px;min-height:16px"></div>
+        <ul id="lobby-players" style="list-style:none;margin:0 0 10px;padding:0;font-size:14px"></ul>
+        <div id="lobby-hostopts" class="grid" style="display:none">
+          <label>AI enemies <select id="lob-enemies"><option>0</option><option>1</option><option>2</option><option selected>3</option><option>4</option></select></label>
+          <label>AI difficulty <select id="lob-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
+          <label><input id="lob-aimsl" type="checkbox" checked> AI uses missiles</label>
+          <label>AI ECM jammer <select id="lob-aiecm"><option value="off">Normal (mixed)</option><option value="threat">ECM when locked</option><option value="spam">ECM always</option></select></label>
+        </div>
+        <div id="lobby-hostnote" style="font-size:12px;color:#9ab;margin-bottom:8px"></div>
+        <div class="row">
+          <button id="lob-ready">READY</button>
+          <button id="lob-start" class="big" style="display:none">START MATCH</button>
+          <button id="lob-leave">LEAVE</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="bel><input id="p-flighthud" type="checkbox" checked> Speed &amp; altitude HUD</label>
         </div>
         <h3>Key bindings <small>click a slot, then press a key / mouse / pad button · Del clears</small></h3>
         <div id="binds"></div>
@@ -67,21 +94,22 @@
 
   <!-- Three.js r128 (classic build so the game runs straight from disk) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="js/config.js?v=0.1.22"></script>
-  <script src="js/util.js?v=0.1.22"></script>
-  <script src="js/input.js?v=0.1.22"></script>
-  <script src="js/terrain.js?v=0.1.22"></script>
-  <script src="js/sim.js?v=0.1.22"></script>
-  <script src="js/ai.js?v=0.1.22"></script>
-  <script src="js/city.js?v=0.1.22"></script>
-  <script src="js/world.js?v=0.1.22"></script>
-  <script src="js/jet-model.js?v=0.1.22"></script>
-  <script src="js/cockpit.js?v=0.1.22"></script>
-  <script src="js/rollcam.js?v=0.1.22"></script>
-  <script src="js/effects.js?v=0.1.22"></script>
-  <script src="js/hud.js?v=0.1.22"></script>
-  <script src="js/audio.js?v=0.1.22"></script>
-  <script src="js/tuning-panel.js?v=0.1.22"></script>
-  <script src="js/main.js?v=0.1.22"></script>
+  <script src="js/config.js?v=0.1.24"></script>
+  <script src="js/util.js?v=0.1.24"></script>
+  <script src="js/input.js?v=0.1.24"></script>
+  <script src="js/terrain.js?v=0.1.24"></script>
+  <script src="js/sim.js?v=0.1.24"></script>
+  <script src="js/ai.js?v=0.1.24"></script>
+  <script src="js/city.js?v=0.1.24"></script>
+  <script src="js/world.js?v=0.1.24"></script>
+  <script src="js/jet-model.js?v=0.1.24"></script>
+  <script src="js/cockpit.js?v=0.1.24"></script>
+  <script src="js/rollcam.js?v=0.1.24"></script>
+  <script src="js/effects.js?v=0.1.24"></script>
+  <script src="js/hud.js?v=0.1.24"></script>
+  <script src="js/audio.js?v=0.1.24"></script>
+  <script src="js/tuning-panel.js?v=0.1.24"></script>
+  <script src="js/net.js?v=0.1.24"></script>
+  <script src="js/main.js?v=0.1.24"></script>
 </body>
 </html>
