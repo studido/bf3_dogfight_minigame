@@ -93,6 +93,7 @@
   };
   $('resume').onclick = () => setPaused(false);
   $('restart').onclick = () => { if (mp) endMatch(); else { newMatch(); setPaused(false); } };
+  $('leavematch').onclick = () => endMatch();
   $('p-loadout').onchange = (e) => {
     me.loadout = e.target.value; me.counterReadyT = Math.max(me.counterReadyT, sim.t + 3);
     try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.loadout = me.loadout; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
@@ -228,16 +229,43 @@
     if (!net.isHost) $('lobby-status').textContent = 'Waiting for the host to start.';
   }
 
-  net.on('joined', () => {
+  net.on('joined', (m) => {
     setStatus('');
     if (mp && started) { toast('Reconnected'); return; }
+    if (m.started) { startMpMatch(net.room.seed); toast('Joined match in progress'); return; }
     $('start').style.display = 'none';
     $('lobby').style.display = 'flex';
     renderLobby();
     pushLobbySettings();
     if (!net.isHost && net.room.settings) $('lobby-hostnote').textContent = describeSettings(net.room.settings);
   });
-  net.on('roster', renderLobby);
+  net.on('roster', () => { renderLobby(); syncMpRosterJets(); });
+
+  // Roster changed while a match is running: give late joiners a jet and drop
+  // jets whose owner left for good. Human jets are inserted before the AI block
+  // and leavers fully removed, so slot indices always equal roster order — the
+  // same layout a late-joining client builds from scratch.
+  function syncMpRosterJets() {
+    if (!mp || !started || !sim || !net.room) return;
+    const players = net.room.players;
+    for (const p of players) {
+      if (netSlots.some((j) => !j.isAI && j.ownerNet === p.id)) continue;
+      const j = sim.addJet(0, p.name, false);
+      j.ownerNet = p.id; j.remote = p.id !== net.myId; j.netBuf = [];
+      const mdl = BF.buildJetModel(0);
+      scene.add(mdl); models.set(j.id, mdl);
+      j.prevPos = j.pos.clone(); j.prevQuat = j.quat.clone();
+      netSlots.splice(netSlots.filter((k) => !k.isAI).length, 0, j);
+      hud.addFeed(`${p.name} connected`, '#7fd0ff');
+    }
+    for (let i = netSlots.length - 1; i >= 0; i--) {
+      const j = netSlots[i];
+      if (j.isAI || players.some((p) => p.id === j.ownerNet)) continue;
+      netSlots.splice(i, 1);
+      const k = sim.jets.indexOf(j); if (k >= 0) sim.jets.splice(k, 1);
+      const mdl = models.get(j.id); if (mdl) { scene.remove(mdl); models.delete(j.id); }
+    }
+  }
   net.on('settings', (m) => { if (!net.isHost) $('lobby-hostnote').textContent = describeSettings(m.d); });
   net.on('error', (m) => setStatus(m.msg || m.code));
   net.on('reconnectWait', () => setStatus('Connection lost — retrying…'));
@@ -270,6 +298,7 @@
     $('lobby').style.display = 'none';
     $('start').style.display = 'flex';
     $('restart').textContent = 'Restart match';
+    $('restart').style.display = '';
     audio.suspend(true);
     if (document.pointerLockElement) document.exitPointerLock();
   }
@@ -281,7 +310,7 @@
     mp = true; started = true;
     $('lobby').style.display = 'none';
     $('start').style.display = 'none';
-    $('restart').textContent = 'Leave match';
+    $('restart').style.display = 'none';
     setPaused(false);
   }
 

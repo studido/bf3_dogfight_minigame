@@ -359,6 +359,19 @@ desync tuning — friends' rule: don't).
   reconnecting while the server still sees a zombie old socket succeeds; 11 relay
   tests pass, deployed as the same `bf3-dogfight-relay` URL.
 
+## v0.1.26: leave match + join in progress
+- Pause menu gains a **Leave match** button (single-player drops straight back to the
+  start screen; online it does the old restart-button leave behavior). The redundant
+  restart relabel in online matches is gone — the restart button is hidden while mp.
+- **Join in progress**: the relay already allowed joining a started room; the client
+  now handles it. A late joiner skips the lobby and flies straight in on the shared
+  seed/settings; everyone mid-match gets the roster and adds their jet. Slot layout
+  stays consistent across machines: human jets live before the AI block, leavers are
+  fully removed mid-match so slots always equal the current roster order.
+- Relay repo: regression test locks in that joining a started room returns
+  `joined{started:true, seed}` and traffic flows; PROTOCOL.md documents it.
+  No server change needed, no redeploy.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag
