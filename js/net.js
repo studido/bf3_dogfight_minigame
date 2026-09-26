@@ -92,6 +92,7 @@ window.BF = window.BF || {};
     leave() { if (this.room) { this.send({ t: 'leave' }); this._clearRoom(); } }
     setSettings(d) { this.send({ t: 'settings', d }); }
     setReady(v) { this.send({ t: 'ready', v }); }
+    setTeam(v) { this.send({ t: 'team', v }); }
     start(seed) { this.send({ t: 'start', seed }); }
     sendState(d) { this.send({ t: 'state', d }); }
     sendEvent(d) { this.send({ t: 'event', d }); }

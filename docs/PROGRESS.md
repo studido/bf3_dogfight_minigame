@@ -415,6 +415,21 @@ desync tuning — friends' rule: don't).
   smoothed pitch rate from consecutive interpolated quats (`dispQuatPrev` delta) for
   remote jets, so hard pulls leave vapour like locally-simulated jets.
 
+## v0.1.31: team select (lobby + mid-match)
+- Relay: every player carries a `team` pick (0/1, `null` = auto) in the roster; a new
+  `{t:'team', v}` message works in the lobby and mid-match. Clients resolve teams
+  deterministically from the roster: explicit picks stand, AUTO fills the lighter side
+  (AI jets count toward team 2), ties go to team 1. Same inputs on every machine, so
+  all clients agree without a server arbiter.
+- Lobby: TEAM 1 / TEAM 2 / AUTO buttons for everyone (host included); roster lists each
+  player's pick.
+- Pause menu (online only): TEAM 1 / TEAM 2 switch. The relay roster broadcast drives
+  it: `syncMpRosterJets` detects a resolved-team change and calls `switchJetTeam` —
+  rebuilds the per-team model paint, clears the interp buffer (no cross-map glide),
+  and `sim.spawn` respawns the jet on the new side of the map. Own jet also re-snaps
+  the camera. Regression tests: relay test covers team messages; mp-sim covers
+  team-side spawn placement.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

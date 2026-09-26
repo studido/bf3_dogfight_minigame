@@ -135,5 +135,18 @@ test('remote ECM emits smoke puffs locally (renderer-only events)', () => {
   assert.strictEqual(sim.events.filter((e) => e.type === 'ecmPuff').length, 0, 'no puffs once the remote jet is dead');
 });
 
+test('spawn() places jets on their team side of the map (team switch respawn basis)', () => {
+  const sim = freshSim();
+  const a = sim.addJet(0, 'A', false);
+  const b = sim.addJet(1, 'B', false);
+  // team 0 spawns at +Z half, team 1 at -Z half
+  assert.ok(a.pos.z > 0, `team 0 jet spawned at z=${a.pos.z.toFixed(0)}, expected +`);
+  assert.ok(b.pos.z < 0, `team 1 jet spawned at z=${b.pos.z.toFixed(0)}, expected -`);
+  // Switch A to team 1 and respawn: it must move to the other side.
+  a.team = 1;
+  sim.spawn(a);
+  assert.ok(a.pos.z < 0, `after team switch respawn, jet z=${a.pos.z.toFixed(0)}, expected - side`);
+});
+
 console.log(`\n${passed} tests passed`);
 process.exit(0);

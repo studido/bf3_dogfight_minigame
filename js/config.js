@@ -4,7 +4,7 @@
 window.BF = window.BF || {};
 // Build number: shown on the start screen. index.html loads every script with ?v=<build> so the
 // browser can't keep running stale cached files after an update (bump both together).
-BF.BUILD = '0.1.30';
+BF.BUILD = '0.1.31';
 
 BF.DEFAULT_CONFIG = {
   flight: {

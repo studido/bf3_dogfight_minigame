@@ -85,6 +85,8 @@
     const showRoom = p && started && mp && net.room;
     $('p-room').style.display = showRoom ? '' : 'none';
     if (showRoom) $('p-roomcode').textContent = net.room.code;
+    $('p-team').style.display = showRoom ? 'flex' : 'none';
+    if (showRoom) paintTeamBtns('p');
     audio.suspend(p);
     if (p && document.pointerLockElement) document.exitPointerLock();
     if (!p) { glCanvas.requestPointerLock && glCanvas.requestPointerLock(); }
@@ -224,13 +226,40 @@
     $('lob-code').textContent = room.code;
     const meP = room.players.find((p) => p.id === net.myId);
     $('lobby-players').innerHTML = room.players.map((p) =>
-      `<li>${p.name}${p.host ? ' <b>[HOST]</b>' : ''}${p.ready ? ' <b>[READY]</b>' : ''}${p.connected ? '' : ' [dropped]'}</li>`).join('');
+      `<li>${p.name}${p.host ? ' <b>[HOST]</b>' : ''}${p.team != null ? ` <span class="gold">[TEAM ${p.team + 1}]</span>` : ''}${p.ready ? ' <b>[READY]</b>' : ''}${p.connected ? '' : ' [dropped]'}</li>`).join('');
+    paintTeamBtns('lob');
     $('lob-ready').style.display = net.isHost ? 'none' : '';
     $('lob-ready').textContent = meP && meP.ready ? 'NOT READY' : 'READY';
     $('lob-start').style.display = net.isHost ? '' : 'none';
     $('lobby-hostopts').style.display = net.isHost ? 'grid' : 'none';
     if (!net.isHost) $('lobby-status').textContent = 'Waiting for the host to start.';
   }
+
+  // Team resolution is deterministic on every client (same roster order, same AI
+  // count): explicit picks stand; AUTO joins the smaller side, tie goes to team 0.
+  // AI jets always fly for team 2 (index 1), so AI count toward its size.
+  function effectiveTeams(players, aiCount) {
+    const out = new Map();
+    const counts = [0, aiCount];
+    for (const p of players) {
+      const t = (p.team === 0 || p.team === 1) ? p.team : (counts[0] <= counts[1] ? 0 : 1);
+      out.set(p.id, t); counts[t]++;
+    }
+    return out;
+  }
+  function paintTeamBtns(prefix) {
+    const t = prefix === 'lob'
+      ? (net.room ? net.room.players.find((p) => p.id === net.myId)?.team : null)
+      : (me ? me.team : null);
+    $(prefix + '-t0').classList.toggle('sel', t === 0);
+    $(prefix + '-t1').classList.toggle('sel', t === 1);
+    if (prefix === 'lob') $(prefix + '-tauto').classList.toggle('sel', t == null);
+  }
+  $('lob-t0').onclick = () => net.setTeam(0);
+  $('lob-t1').onclick = () => net.setTeam(1);
+  $('lob-tauto').onclick = () => net.setTeam(null);
+  $('p-t0').onclick = () => { if (me && me.team !== 0) net.setTeam(0); };
+  $('p-t1').onclick = () => { if (me && me.team !== 1) net.setTeam(1); };
 
   net.on('joined', (m) => {
     setStatus('');
@@ -251,11 +280,12 @@
   function syncMpRosterJets() {
     if (!mp || !started || !sim || !net.room) return;
     const players = net.room.players;
+    const teams = effectiveTeams(players, netSlots.filter((j) => j.isAI).length);
     for (const p of players) {
       if (netSlots.some((j) => !j.isAI && j.ownerNet === p.id)) continue;
-      const j = sim.addJet(0, p.name, false);
+      const j = sim.addJet(teams.get(p.id) || 0, p.name, false);
       j.ownerNet = p.id; j.remote = p.id !== net.myId; j.netBuf = [];
-      const mdl = BF.buildJetModel(0);
+      const mdl = BF.buildJetModel(j.team);
       scene.add(mdl); models.set(j.id, mdl);
       j.prevPos = j.pos.clone(); j.prevQuat = j.quat.clone();
       netSlots.splice(netSlots.filter((k) => !k.isAI).length, 0, j);
@@ -268,6 +298,30 @@
       const k = sim.jets.indexOf(j); if (k >= 0) sim.jets.splice(k, 1);
       const mdl = models.get(j.id); if (mdl) { scene.remove(mdl); models.delete(j.id); }
     }
+    // Team picks are part of the roster, so this same hook covers the in-match
+    // switch. Apply respawn-on-team-side to any jet whose resolved team moved.
+    for (const p of players) {
+      const j = netSlots.find((k) => !k.isAI && k.ownerNet === p.id);
+      const t = teams.get(p.id);
+      if (!j || t == null || j.team === t) continue;
+      switchJetTeam(j, t);
+    }
+  }
+
+  function switchJetTeam(j, team) {
+    j.team = team;
+    // Jet model paint is per-team: rebuild it.
+    const old = models.get(j.id);
+    if (old) { scene.remove(old); models.delete(j.id); }
+    const mdl = BF.buildJetModel(team);
+    scene.add(mdl); models.set(j.id, mdl);
+    // Clear interp state so a remote jet doesn't glide across the map from the old
+    // team's side while waiting for the owner's stream.
+    j.netBuf = []; j.netNextAt = 0; j.dispQuatPrev = null;
+    sim.spawn(j); // respawns (alive) on the new team's side
+    j.prevPos = j.pos.clone(); j.prevQuat = j.quat.clone();
+    hud.addFeed(`${j.name} switched to team ${team + 1}`, '#ffd84a');
+    if (j === me) { camQ.copy(me.quat); camPos.copy(me.pos); paintTeamBtns('p'); }
   }
   net.on('settings', (m) => { if (!net.isHost) $('lobby-hostnote').textContent = describeSettings(m.d); });
   net.on('error', (m) => setStatus(m.msg || m.code));
@@ -336,8 +390,9 @@
     ais = [];
     netSlots = [];
     const players = net.room ? net.room.players : [];
+    const teams = effectiveTeams(players, Math.max(0, Math.min(4, +(d.enemies ?? 3))));
     for (const p of players) {
-      const j = sim.addJet(0, p.name, false);
+      const j = sim.addJet(teams.get(p.id) || 0, p.name, false);
       j.ownerNet = p.id; j.remote = p.id !== net.myId; j.netBuf = [];
       if (!j.remote) { me = j; j.loadout = $('opt-loadout').value; j.counterReadyT = sim.t + 2; }
       netSlots.push(j);
