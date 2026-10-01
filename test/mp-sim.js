@@ -148,5 +148,47 @@ test('spawn() places jets on their team side of the map (team switch respawn bas
   assert.ok(a.pos.z < 0, `after team switch respawn, jet z=${a.pos.z.toFixed(0)}, expected - side`);
 });
 
+function aimSetup() {
+  const sim = freshSim();
+  const shooter = sim.addJet(0, 'Me', false);
+  const target = sim.addJet(1, 'Bob', false);
+  target.remote = true; target.spawnT = -99;
+  target.quat.copy(shooter.quat);
+  const fwd = BF.forwardOf(shooter.quat, new stub.Vector3());
+  const right = BF.rightOf(shooter.quat, new stub.Vector3());
+  return { sim, shooter, target, fwd, right };
+}
+const remoteHitsOn = (sim, id) => sim.events.filter((e) => e.type === 'hit' && e.remote && e.jet === id).length;
+
+test('cannon vs remote jet hits where it is DRAWN (dispPos), not at the newer snapshot', () => {
+  // Drawn dead ahead; newest snapshot 17 m to the side (0.12 s interp delay x 144 m/s)
+  const { sim, shooter, target, fwd, right } = aimSetup();
+  target.dispPos = shooter.pos.clone().addScaledVector(fwd, 150);
+  target.pos.copy(target.dispPos).addScaledVector(right, 17);
+  shooter.ctl = { ...BF.emptyControls(), fire: true };
+  sim.events.length = 0;
+  for (let i = 0; i < 30; i++) sim.step(1 / 60);
+  assert.ok(remoteHitsOn(sim, target.id) > 0, 'aiming at the drawn jet must register hits');
+});
+
+test('cannon vs remote jet: shooting at the hidden snapshot position no longer hits', () => {
+  const { sim, shooter, target, fwd, right } = aimSetup();
+  target.pos.copy(shooter.pos).addScaledVector(fwd, 150);            // snapshot dead ahead
+  target.dispPos = target.pos.clone().addScaledVector(right, 17);    // but drawn 17 m aside
+  shooter.ctl = { ...BF.emptyControls(), fire: true };
+  sim.events.length = 0;
+  for (let i = 0; i < 30; i++) sim.step(1 / 60);
+  assert.strictEqual(remoteHitsOn(sim, target.id), 0, 'empty air where nothing is drawn must not hit');
+});
+
+test("remote missile launches from the jet's drawn position", () => {
+  const sim = freshSim();
+  const j = sim.addJet(1, 'Bob', false); j.remote = true;
+  j.dispPos = j.pos.clone().addScaledVector(BF.forwardOf(j.quat, new stub.Vector3()), -17);
+  j.dispQuat = j.quat.clone();
+  const m = sim.launchRemoteMissile(j);
+  assert.ok(m.pos.distanceTo(j.dispPos) < 3, `missile spawned ${m.pos.distanceTo(j.dispPos).toFixed(1)} m from the drawn jet`);
+});
+
 console.log(`\n${passed} tests passed`);
 process.exit(0);

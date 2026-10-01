@@ -430,6 +430,30 @@ desync tuning — friends' rule: don't).
   the camera. Regression tests: relay test covers team messages; mp-sim covers
   team-side spawn placement.
 
+## v0.1.32: netcode review fixes (relay v0.1.2)
+1. **Interp timeline recovers after hiccups** (`BF.netStamp`, net.js). Before this, one 300 ms
+   stall followed by a burst left that jet drawn 0.3 s further behind for the rest of the
+   match (up to ~0.4 s, the buffer cap). Now the stamp bleeds off up to 4 ms per packet,
+   snaps if more than 0.1 s ahead, and stays monotonic.
+2. **Cannon hits test remote jets at `dispPos`** (where they are drawn), not the newest
+   snapshot ~0.12 s × 144 m/s ≈ 17 m ahead (hit radius 7 m). Remote missiles also launch
+   from the drawn jet.
+3. **Per-tab session** (sessionStorage), so two tabs can't resume each other's slot. Close
+   code 4001 ("replaced") no longer auto-reconnects; it ends the match with a toast. Stale
+   socket events are ignored, and `connect()` while CONNECTING waits instead of dropping
+   create/join.
+4. **Events batched into the 30 Hz state message** (`d.ev`). Cannon hits merge per
+   victim+shooter. Before this, a host whose AI landed hits sent ~88 msgs/s and, once past
+   the 120-message burst, ~40 % of messages (states and hits) were dropped by the relay's
+   50 msg/s limit. Now each client sends 30 msgs/s. Receivers still accept legacy `event`
+   messages.
+5. **Relay: host grace window** (20 s). A host drop sends `hostWait`; resuming sends
+   `hostBack`. An explicit host leave still ends the room immediately.
+6. **Lobby callsigns HTML-escaped.**
+- Tests: `test/net-client.js` (7 new), `test/mp-sim.js` (+3), relay `test/relay.test.js`
+  (+1, 14 total). All pass. Full-page headless smoke (single player + a faked 2-player
+  room) also passes.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

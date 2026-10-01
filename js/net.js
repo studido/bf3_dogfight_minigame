@@ -9,6 +9,32 @@ window.BF = window.BF || {};
 
   BF.NET_DEFAULT_URL = 'wss://bf3-dogfight-relay.fly.dev';
 
+  // Interpolation timestamp for an incoming 30 Hz snapshot of jet j arriving at time
+  // `at` (s). Samples are spread at the sender's cadence (WebSocket often delivers two
+  // at once then nothing), but the stamp also catches back up to real time after a
+  // burst. Otherwise one network hiccup would add its delay to that jet for good. It
+  // bleeds off up to 4 ms per packet, snaps if more than 0.1 s ahead, and stays monotonic.
+  BF.netStamp = (j, at, hz) => {
+    let sat = Math.max(at, j.netNextAt || 0);
+    const ahead = sat - at;
+    if (ahead > 0.1) sat = at;
+    const b = j.netBuf, lastAt = b && b.length ? b[b.length - 1].at : -Infinity;
+    sat = Math.max(sat, lastAt + 0.001);
+    j.netNextAt = sat + 1 / hz - Math.min(Math.max(0, ahead), 0.004);
+    return sat;
+  };
+
+  // Outbound game events are batched into the next state message. Cannon hits on the
+  // same victim by the same shooter merge into one entry with summed damage.
+  BF.queueNetEvent = (queue, e) => {
+    if (e.kind === 'hit') {
+      const same = queue.find((q) => q.kind === 'hit' && q.jetSlot === e.jetSlot && q.bySlot === e.bySlot && q.w === e.w);
+      if (same) { same.dmg += e.dmg; return queue; }
+    }
+    queue.push(e);
+    return queue;
+  };
+
   BF.Net = class {
     constructor() {
       this.url = localStorage.getItem(LS + 'url') || BF.NET_DEFAULT_URL;
@@ -34,13 +60,17 @@ window.BF = window.BF || {};
 
     // Open the socket and keep it open. safe to call repeatedly.
     connect() {
-      if (this.connected || (this.ws && this.ws.readyState === 0)) return Promise.resolve();
+      if (this.connected) return Promise.resolve();
+      // Still connecting: wait for that socket instead of pretending we're open (a
+      // create/join sent now would be silently dropped).
+      if (this.ws && this.ws.readyState === 0 && this.connecting) return this.connecting;
       this.wantConnection = true;
-      return new Promise((resolve, reject) => {
+      this.connecting = new Promise((resolve, reject) => {
         let settled = false;
         const ws = new WebSocket(this.url);
         this.ws = ws;
         ws.onopen = () => {
+          if (this.ws !== ws) return; // superseded by a newer socket
           settled = true;
           this.backoff = RECONNECT_BASE_MS;
           // resume a room if we were in one (server gives a ~1 min grace)
@@ -49,15 +79,28 @@ window.BF = window.BF || {};
           this.emit('open', {});
           resolve();
         };
-        ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } this._onMessage(m); };
-        ws.onclose = () => {
-          this.ws = null;
-          this.emit('close', {});
+        ws.onmessage = (e) => { if (this.ws !== ws) return; let m; try { m = JSON.parse(e.data); } catch { return; } this._onMessage(m); };
+        ws.onclose = (e) => {
           if (!settled) { settled = true; reject(new Error('could not reach server')); }
+          // A late close from an old socket must not clobber the live one.
+          if (this.ws !== ws) return;
+          this.ws = null;
+          this.connecting = null;
+          if (e && e.code === 4001) {
+            // 'replaced': this same session was resumed from somewhere else (another tab
+            // or window). Reconnecting would steal it back and start a tug-of-war.
+            this.wantConnection = false;
+            this.room = null;
+            this.emit('replaced', {});
+            this.emit('close', {});
+            return;
+          }
+          this.emit('close', {});
           this._scheduleReconnect();
         };
         ws.onerror = () => { /* onclose follows */ };
       });
+      return this.connecting;
     }
 
     disconnect() {
@@ -125,16 +168,18 @@ window.BF = window.BF || {};
       this.emit(m.t, m);
     }
 
+    // The resumable session is stored per TAB (sessionStorage): two tabs in one browser
+    // must not share an identity, or each reconnect would sever the other.
     _savedSession() {
       try {
-        const s = JSON.parse(localStorage.getItem(LS + 'session') || 'null');
+        const s = JSON.parse(sessionStorage.getItem(LS + 'session') || 'null');
         return s && s.code && s.id && s.token ? s : null;
       } catch { return null; }
     }
     _saveSession() {
-      localStorage.setItem(LS + 'session', JSON.stringify({ code: this.room.code, id: this.room.id, token: this.room.token }));
+      try { sessionStorage.setItem(LS + 'session', JSON.stringify({ code: this.room.code, id: this.room.id, token: this.room.token })); } catch { /* ignore */ }
     }
-    _forgetSession() { localStorage.removeItem(LS + 'session'); }
+    _forgetSession() { try { sessionStorage.removeItem(LS + 'session'); localStorage.removeItem(LS + 'session'); } catch { /* ignore */ } }
     _clearRoom() { this.room = null; this._forgetSession(); }
   };
 })();

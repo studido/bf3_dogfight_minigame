@@ -205,6 +205,8 @@
     net.join(code, myName());
   };
 
+  // Other players' callsigns are untrusted: escape before putting them in HTML
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const DIFF_LABEL = { veryEasy: 'very easy', easy: 'easy', medium: 'medium', hard: 'hard', extreme: 'extremely hard' };
   function lobbySettings() {
     return {
@@ -226,7 +228,7 @@
     $('lob-code').textContent = room.code;
     const meP = room.players.find((p) => p.id === net.myId);
     $('lobby-players').innerHTML = room.players.map((p) =>
-      `<li>${p.name}${p.host ? ' <b>[HOST]</b>' : ''}${p.team != null ? ` <span class="gold">[TEAM ${p.team + 1}]</span>` : ''}${p.ready ? ' <b>[READY]</b>' : ''}${p.connected ? '' : ' [dropped]'}</li>`).join('');
+      `<li>${escHtml(p.name)}${p.host ? ' <b>[HOST]</b>' : ''}${p.team != null ? ` <span class="gold">[TEAM ${p.team + 1}]</span>` : ''}${p.ready ? ' <b>[READY]</b>' : ''}${p.connected ? '' : ' [dropped]'}</li>`).join('');
     paintTeamBtns('lob');
     $('lob-ready').style.display = net.isHost ? 'none' : '';
     $('lob-ready').textContent = meP && meP.ready ? 'NOT READY' : 'READY';
@@ -325,6 +327,13 @@
   }
   net.on('settings', (m) => { if (!net.isHost) $('lobby-hostnote').textContent = describeSettings(m.d); });
   net.on('error', (m) => setStatus(m.msg || m.code));
+  net.on('hostWait', (m) => { if (started) toast(`Host connection lost — waiting up to ${Math.round((m.ms || 20000) / 1000)} s…`); else setStatus('Host connection lost — waiting…'); });
+  net.on('hostBack', () => { if (started) toast('Host reconnected'); else setStatus(''); });
+  net.on('replaced', () => {
+    toast('This session was opened in another tab or window');
+    if (started && mp) endMatch();
+    else { $('lobby').style.display = 'none'; $('start').style.display = 'flex'; }
+  });
   net.on('reconnectWait', () => setStatus('Connection lost — retrying…'));
   net.on('close', () => { if (!started) setStatus('Disconnected'); else toast('Connection dropped — reconnecting…'); });
 
@@ -343,12 +352,15 @@
   net.on('start', (m) => startMpMatch(m.seed));
   net.on('from', (m) => {
     if (!mp || !started || !sim) return;
-    if (m.k === 'state') applyNetState(m.from, m.d && m.d.jets);
+    if (m.k === 'state') {
+      applyNetState(m.from, m.d && m.d.jets);
+      if (m.d && Array.isArray(m.d.ev)) for (const e of m.d.ev) handleNetEvent(m.from, e);
+    }
     else if (m.k === 'event') handleNetEvent(m.from, m.d);
   });
 
   function endMatch() {
-    mp = false; started = false; netSlots = [];
+    mp = false; started = false; netSlots = []; netEvQueue = [];
     net.leave();
     paused = true;
     $('pause').style.display = 'none';
@@ -427,7 +439,8 @@
         +j.quat.x.toFixed(3), +j.quat.y.toFixed(3), +j.quat.z.toFixed(3), +j.quat.w.toFixed(3),
         Math.round(j.speed), +j.health.toFixed(1), flags, j.weapon === 'missile' ? 1 : 0, j.missiles]);
     }
-    net.sendState({ jets });
+    const ev = netEvQueue; netEvQueue = [];
+    net.sendState(ev.length ? { jets, ev } : { jets });
   }
 
   function applyNetState(fromId, jets) {
@@ -440,9 +453,11 @@
       // Interp-timeline stamp, not raw arrival time: WebSocket can deliver 2 packets in
       // one frame then idle for 60 ms, which makes the interpolator surge/stall. Spread
       // samples at the sender's 30 Hz cadence; genuinely late packets keep real time.
-      const sat = Math.max(at, j.netNextAt || 0);
-      j.netNextAt = sat + 1 / NET_HZ;
+      // ...but the stamp must also catch back up to real time after a burst, or one
+      // network hiccup adds its delay to this jet permanently. Bleed off up to 4 ms per
+      // packet (~12 % of the interval, invisible) and snap if more than 0.1 s ahead.
       if (!j.netBuf) j.netBuf = [];
+      const sat = BF.netStamp(j, at, NET_HZ);
       j.netBuf.push({ at: sat, x, y, z, qx, qy, qz, qw });
       if (j.netBuf.length > 12) j.netBuf.shift();
       j.pos.set(x, y, z);
@@ -455,21 +470,26 @@
     }
   }
 
+  // Outbound events are queued and sent inside the next 30 Hz state message (d.ev), so
+  // a burst of cannon hits can't blow through the relay's 50 msg/s rate limit. Cannon
+  // hits on the same victim by the same shooter merge into one entry with summed damage.
+  let netEvQueue = [];
+  function queueNetEvent(e) { BF.queueNetEvent(netEvQueue, e); }
   // Outbound: report what my sim decided about jets owned by others.
   function forwardEvent(ev) {
     const src = ev.jet != null ? sim.jet(ev.jet) : null;
     if (ev.type === 'hit' && ev.remote && src) {
-      net.sendEvent({
+      queueNetEvent({
         kind: 'hit', jetSlot: slotOf(src), bySlot: slotOf(sim.jet(ev.by)),
         dmg: ev.kind === 'missile' ? cfg.weapons.missileDamage : cfg.weapons.cannonDamage,
         w: ev.kind === 'missile' ? 'm' : 'c',
       });
     } else if (ev.type === 'kill' && src && !src.remote) {
-      net.sendEvent({ kind: 'kill', jetSlot: slotOf(src), bySlot: ev.by != null ? slotOf(sim.jet(ev.by)) : -1, how: ev.how });
+      queueNetEvent({ kind: 'kill', jetSlot: slotOf(src), bySlot: ev.by != null ? slotOf(sim.jet(ev.by)) : -1, how: ev.how });
     } else if ((ev.type === 'flares' || ev.type === 'ecm') && src && !src.remote) {
-      net.sendEvent({ kind: 'cm', jetSlot: slotOf(src), what: ev.type });
+      queueNetEvent({ kind: 'cm', jetSlot: slotOf(src), what: ev.type });
     } else if (ev.type === 'missileLaunch' && src && !src.remote) {
-      net.sendEvent({ kind: 'msl', jetSlot: slotOf(src), targetSlot: ev.target != null ? slotOf(sim.jet(ev.target)) : -1 });
+      queueNetEvent({ kind: 'msl', jetSlot: slotOf(src), targetSlot: ev.target != null ? slotOf(sim.jet(ev.target)) : -1 });
     }
   }
 

@@ -262,10 +262,14 @@ window.BF = window.BF || {};
         const len2 = seg.lengthSq();
         for (const j of this.jets) {
           if (!j.alive || j.team === b.team) continue;
-          // Segment-sphere test (jet moved this tick; test against its current pos)
-          toC.subVectors(j.pos, b.pos);
+          // Segment-sphere test (jet moved this tick; test against its current pos).
+          // Remote jets are tested where they are DRAWN on this screen (dispPos, the
+          // interpolated position), not at the newest network snapshot, which is ~0.12 s
+          // (~17 m) ahead. Shooter-authoritative: what you see is what you hit.
+          const jp = (j.remote && j.dispPos) || j.pos;
+          toC.subVectors(jp, b.pos);
           const t = BF.clamp(toC.dot(seg) / len2, 0, 1);
-          const dx = b.pos.x + seg.x * t - j.pos.x, dy = b.pos.y + seg.y * t - j.pos.y, dz = b.pos.z + seg.z * t - j.pos.z;
+          const dx = b.pos.x + seg.x * t - jp.x, dy = b.pos.y + seg.y * t - jp.y, dz = b.pos.z + seg.z * t - jp.z;
           if (dx * dx + dy * dy + dz * dz < R2) {
             if (b.visualOnly) return false; // another client's tracer; its owner reports the real hit
             // Victim jet is owned by another client: report the hit, they apply the damage.
@@ -448,10 +452,12 @@ window.BF = window.BF || {};
     // A missile launched by a remote player: simulated locally for visuals and decoys,
     // but it never damages anything — the real impact is reported by the shooter's sim.
     launchRemoteMissile(j, targetId) {
-      const fwd = BF.forwardOf(j.quat, new V3());
+      // Launch from where the jet is drawn on this screen, not the newer snapshot ahead of it
+      const jp = j.dispPos || j.pos, jq = j.dispQuat || j.quat;
+      const fwd = BF.forwardOf(jq, new V3());
       const m = {
         id: this.nextId++, owner: j.id, target: typeof targetId === 'number' ? targetId : null,
-        pos: j.pos.clone().addScaledVector(BF.upOf(j.quat, tmpV), -1.5), dir: fwd,
+        pos: jp.clone().addScaledVector(BF.upOf(jq, tmpV), -1.5), dir: fwd,
         speed: j.vel.length(), life: this.cfg.weapons.missileLife, armed: 0.25, visual: true,
       };
       this.missiles.push(m);
