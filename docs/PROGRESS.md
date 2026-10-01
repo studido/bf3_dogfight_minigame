@@ -454,6 +454,15 @@ desync tuning — friends' rule: don't).
   (+1, 14 total). All pass. Full-page headless smoke (single player + a faked 2-player
   room) also passes.
 
+## v0.1.32: post-processing — bloom, filmic grade, sun glare, FXAA (BF3 look pass 1)
+- All rendering now runs through an EffectComposer (r128 example scripts vendored into
+  js/vendor so the game still runs from disk): UnrealBloom on an HDR target (WebGL2
+  HalfFloat), then the grade pass, then FXAA.
+- Grade pass (js/post.js): ACES-style filmic tone map, BF3 split tone (teal shadows /
+  warm highlights / slight mid desaturation), vignette, procedural sun glare
+  (anamorphic horizontal streak + glow + ghost chain + halo ring) driven by the sun's
+  screen position, and faint dirty-lens bars that brighten when looking sunward.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

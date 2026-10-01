@@ -8,10 +8,12 @@
   const glCanvas = $('gl');
   const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  // Linear output with no tone mapping keeps custom shaders (sky, particles) and
-  // built-in materials consistent, so the fogged horizon meets the sky without a seam.
+  // Everything renders through the post chain (post.js): HDR bloom, filmic tone map,
+  // BF3 teal/warm grade, vignette, sun glare, FXAA. Scene stays linear; the grade
+  // pass tone-maps, so sky (custom shader) and fogged terrain stay seam-free.
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(cfg.camera.baseFov, 1, 0.5, 30000);
+  const post = BF.buildPost(renderer, scene, camera);
   const hud = new BF.HUD($('hud'));
   const input = new BF.Input(glCanvas);
   const audio = new BF.Audio();
@@ -22,6 +24,7 @@
   const resize = () => {
     const w = innerWidth, h = innerHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    post.setSize(w, h);
     hud.resize(w, h, Math.min(devicePixelRatio, 2));
   };
   addEventListener('resize', resize); resize();
@@ -596,7 +599,7 @@
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    if (!started) { renderer.render(scene, camera); return; }
+    if (!started) { post.render(dt); return; }
     const ctl = input.poll(dt);
     me.ctlDevice = input.lastDevice;
     if (!paused) {
@@ -672,7 +675,8 @@
     updateCamera(dt, iPos, iQuat);
     world.update(camera.position, sim.t);
     effects.update(paused ? 0 : dt, sim, camera, innerHeight * renderer.getPixelRatio());
-    renderer.render(scene, camera);
+    post.setSun(world.sunDir, camera);
+    post.render(dt);
     combiner = null;
     if (camMode === 'cockpit' && me.alive && !me.ctl.lookBack) {
       cockpit.sync(camera, world.sunDir);
