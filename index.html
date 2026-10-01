@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dogfight 313 — v0.2 prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=0.1.32">
+  <link rel="stylesheet" href="css/style.css?v=0.1.33">
 </head>
 <body>
   <canvas id="gl"></canvas>
@@ -106,32 +106,33 @@
 
   <!-- Three.js r128 (classic build so the game runs straight from disk) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- r128 post-processing example scripts (MIT, three.js project), vendored for offline play -->
-  <script src="js/vendor/CopyShader.js?v=0.1.32"></script>
-  <script src="js/vendor/LuminosityHighPassShader.js?v=0.1.32"></script>
-  <script src="js/vendor/FXAAShader.js?v=0.1.32"></script>
-  <script src="js/vendor/MaskPass.js?v=0.1.32"></script>
-  <script src="js/vendor/ShaderPass.js?v=0.1.32"></script>
-  <script src="js/vendor/EffectComposer.js?v=0.1.32"></script>
-  <script src="js/vendor/RenderPass.js?v=0.1.32"></script>
-  <script src="js/vendor/UnrealBloomPass.js?v=0.1.32"></script>
-  <script src="js/config.js?v=0.1.32"></script>
-  <script src="js/util.js?v=0.1.32"></script>
-  <script src="js/input.js?v=0.1.32"></script>
-  <script src="js/terrain.js?v=0.1.32"></script>
-  <script src="js/sim.js?v=0.1.32"></script>
-  <script src="js/ai.js?v=0.1.32"></script>
-  <script src="js/city.js?v=0.1.32"></script>
-  <script src="js/world.js?v=0.1.32"></script>
-  <script src="js/jet-model.js?v=0.1.32"></script>
-  <script src="js/cockpit.js?v=0.1.32"></script>
-  <script src="js/rollcam.js?v=0.1.32"></script>
-  <script src="js/effects.js?v=0.1.32"></script>
-  <script src="js/hud.js?v=0.1.32"></script>
-  <script src="js/audio.js?v=0.1.32"></script>
-  <script src="js/tuning-panel.js?v=0.1.32"></script>
-  <script src="js/net.js?v=0.1.32"></script>
-  <script src="js/post.js?v=0.1.32"></script>
-  <script src="js/main.js?v=0.1.32"></script>
+  <!-- r128 post-processing example scripts (MIT, three.js project), vendored for offline play.
+       ORDER MATTERS: EffectComposer.js defines THREE.Pass/FullScreenQuad used by the pass files. -->
+  <script src="js/vendor/CopyShader.js?v=0.1.33"></script>
+  <script src="js/vendor/LuminosityHighPassShader.js?v=0.1.33"></script>
+  <script src="js/vendor/FXAAShader.js?v=0.1.33"></script>
+  <script src="js/vendor/EffectComposer.js?v=0.1.33"></script>
+  <script src="js/vendor/MaskPass.js?v=0.1.33"></script>
+  <script src="js/vendor/ShaderPass.js?v=0.1.33"></script>
+  <script src="js/vendor/RenderPass.js?v=0.1.33"></script>
+  <script src="js/vendor/UnrealBloomPass.js?v=0.1.33"></script>
+  <script src="js/config.js?v=0.1.33"></script>
+  <script src="js/util.js?v=0.1.33"></script>
+  <script src="js/input.js?v=0.1.33"></script>
+  <script src="js/terrain.js?v=0.1.33"></script>
+  <script src="js/sim.js?v=0.1.33"></script>
+  <script src="js/ai.js?v=0.1.33"></script>
+  <script src="js/city.js?v=0.1.33"></script>
+  <script src="js/world.js?v=0.1.33"></script>
+  <script src="js/jet-model.js?v=0.1.33"></script>
+  <script src="js/cockpit.js?v=0.1.33"></script>
+  <script src="js/rollcam.js?v=0.1.33"></script>
+  <script src="js/effects.js?v=0.1.33"></script>
+  <script src="js/hud.js?v=0.1.33"></script>
+  <script src="js/audio.js?v=0.1.33"></script>
+  <script src="js/tuning-panel.js?v=0.1.33"></script>
+  <script src="js/net.js?v=0.1.33"></script>
+  <script src="js/post.js?v=0.1.33"></script>
+  <script src="js/main.js?v=0.1.33"></script>
 </body>
 </html>
