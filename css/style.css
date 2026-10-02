@@ -48,3 +48,5 @@ summary { cursor: pointer; color: #7fe3ff; text-transform: uppercase; letter-spa
 #tp-json { width: 100%; height: 70px; margin-top: 6px; font-size: 11px; font-family: Consolas, monospace; }
 #tp-diag { font-family: Consolas, monospace; font-size: 11px; line-height: 1.5; background: rgba(0,0,0,0.35); border: 1px solid rgba(127,227,255,0.25); padding: 6px 8px; margin-bottom: 8px; color: #cfefff; }
 #tp-diag b { color: #ffd84a; }
+.credits { margin-top: 10px; font-size: 11px; color: rgba(207,239,255,0.5); }
+.credits a { color: rgba(127,227,255,0.75); }

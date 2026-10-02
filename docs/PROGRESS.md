@@ -454,6 +454,14 @@ desync tuning — friends' rule: don't).
   (+1, 14 total). All pass. Full-page headless smoke (single player + a faked 2-player
   room) also passes.
 
+## v0.1.33: hotfix — vendor load order broke the start menu
+- v0.1.32 loaded ShaderPass/RenderPass/etc. *before* EffectComposer.js, but r128's
+  passes extend `THREE.Pass`, which is defined **inside** EffectComposer.js. Result:
+  "Class extends value undefined" at load, game bootstrap aborted, all menu buttons
+  dead. Folded the order into index.html with a comment; cache-busters bumped.
+  Headless load-order regression check: node one-liner evals all 8 vendor files in
+  index.html order against a Proxy THREE stub (both orders verified).
+
 ## v0.1.32: post-processing — bloom, filmic grade, sun glare, FXAA (BF3 look pass 1)
 - All rendering now runs through an EffectComposer (r128 example scripts vendored into
   js/vendor so the game still runs from disk): UnrealBloom on an HDR target (WebGL2
@@ -462,6 +470,231 @@ desync tuning — friends' rule: don't).
   warm highlights / slight mid desaturation), vignette, procedural sun glare
   (anamorphic horizontal streak + glow + ghost chain + halo ring) driven by the sun's
   screen position, and faint dirty-lens bars that brighten when looking sunward.
+
+## v0.1.34: graphics pass 1 redo + F/A-18 model
+- **Post-processing rebuilt** (`js/post.js`). Pass 1 looked hazy, washed out and streaky:
+  - ACES tone mapping on display-space colours flattened contrast. Now the grade works in
+    display space (gentle S-curve, soft shoulder above 0.8 only).
+  - Bloom fired on the whole sky. Now only HDR > ~1 blooms (sun disc, afterburners, flares).
+  - The always-on "dirty lens" bars caused the faint vertical lines, and a halo ring sat
+    around the sun. Both removed; sun glare is a small glow plus 2 faint ghosts, only
+    with the sun in view.
+  - The vignette doubled up with the HUD's. Post no longer vignettes and the HUD
+    vignette is lighter.
+  - On WebGL2 the scene renders into a 4x MSAA HDR target (canvas MSAA is lost with a
+    composer); FXAA is only the WebGL1 fallback.
+- **Sky:** normalising per fragment fixed faceted bands on the dome. The red combat-area
+  curtain only fades in within ~900 m of the edge (it drew a band across the sky).
+- **F/A-18E/F model** (`assets/models/fa18.glb`, from the user's Sketchfab download):
+  - Optimised with gltf-transform (spec-gloss to metal-rough, 4K to 2K textures, dedup,
+    prune, quantize): 10.3 MB → 2.1 MB, ~58k triangles. Also embedded as base64
+    (`fa18.glb.js`) so it loads from file://.
+  - GLTFLoader (r128) vendored, patched to decode textures through `<img>`.
+  - Rotated/recentred to game space; afterburner flames and glows sit on the real nozzles.
+    Red team uses darker grey-green paint copies.
+  - Missiles are part of the model (merged meshes), so they don't disappear per shot yet.
+  - Falls back to the primitive jet if loading fails.
+- **New dev tool:** `/tmp/pv/build.py` (not in repo) bundles the game into one HTML for
+  the app's preview panel and scripts camera shots, so renders can be checked without
+  user screenshots.
+
+## v0.1.35: texture quality setting + model credits
+- **Texture quality** menu option (start screen and pause, saved): Low 1K / **Medium 2K
+  (default)** / High 4K jet textures.
+  - Each quality is its own base64 script (`assets/models/fa18_<q>.glb.js`: 2.1 / 2.9 /
+    12.2 MB) loaded only when chosen, so Medium/Low players never download the 4K file.
+  - Switching mid-match swaps every jet to the new model once it's decoded; quick
+    switches only apply the latest choice, and decoded qualities stay cached.
+  - Preview renders confirm Low vs High (the VFA-103 lettering and panel lines are crisp
+    on High).
+  - GPU memory: 4K ≈ 180 MB of textures, 2K ≈ 45 MB, 1K ≈ 12 MB. Shared by all jets.
+- **Credits:** "Boeing F/A-18E/F Super Hornet" by andertan (Sketchfab), CC BY 4.0. Shown on
+  the start screen and in the README with the changes made, as the licence requires.
+- Regenerate the variants from the source GLB with gltf-transform: `metalrough` →
+  `resize --width N --height N` (skip for 4K) → `dedup` → `prune` → `quantize`, then
+  base64-wrap.
+
+## v0.1.37: photo sky (HDRI) + jet reflections
+- **Sky backdrop:** Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)" (CC0).
+  - The 75 MB 4K EXR is tone-mapped (1 − e^(−1.15x), gamma 2.2) to a 385 KB equirect
+    JPEG (`assets/sky/`, base64-wrapped for file://).
+  - Sky shader samples it per fragment, rotated so the photo's sun (47.9° up, u = 0.595)
+    lines up with the game sun, which was raised from 33° to 47.9° to match. The photo's
+    mirrored lower half fades into the fog colour. An HDR sun disc keeps the bloom.
+  - No mipmaps on the sky texture, to avoid a seam line where `atan` wraps.
+- **Fog colour** = the photo's average horizon colour (#a1a4b0), so distant terrain fades
+  straight into the photo. 3D clouds: 70 → 38, unfogged, 0.75 opacity, so they don't show as
+  grey smudges against the photo clouds.
+- **Jet reflections are back:** PMREM-prefiltered sky (paint 0.55, canopy 1.2), built once the
+  photo decodes (`BF.ensureJetEnv`). The v0.1.34 blow-out came from the generated env
+  scene; the photo env renders correctly (checked in preview).
+- The ground HDRI ("Alps field") isn't used. It's a ground-level photo and conflicts with
+  our terrain.
+
+## v0.1.38: realistic terrain shape and splat shader
+- **Shape:** gradient (Perlin) noise replaces value noise (no grid artifacts), domain-warped
+  so nothing lines up with the axes. Rolling lowlands plus ridged-multifractal mountains
+  (sharp ridgelines, eroded flanks). Ranges ring the map with a few inner ranges. Heights
+  run from -2 to 621 m, about 1 % water.
+- **Mesh:** 640x640 grid over 15.3 km (about 24 m spacing), smooth normals taken from the
+  height function itself (`js/terrain-render.js`).
+- **Splat shader** (MeshStandardMaterial + onBeforeCompile): four layers (grass, dirt,
+  rock, snow) weighted per vertex by slope, altitude and noise. Each layer is sampled at
+  two scales against tiling. Kilometre-scale macro variation, triplanar rock on cliffs,
+  blended tangent-space normals. Procedural stand-in textures are used until the photos
+  load.
+
+## v0.1.39: Poly Haven ground textures, building clusters, cumulus clouds
+- **Ground textures:** Poly Haven (CC0) aerial_grass_rock, forrest_ground_01,
+  aerial_rocks_02 and snow_02, built from the 4K sources.
+  - Per set: `diff` (colour) + `nr` (normal X/Y in R/G, roughness in B; the shader rebuilds
+    Z). JPEG q95 with 4:4:4 chroma, so the normal channels stay sharp. Normals are
+    downsampled as vectors and renormalised.
+  - 2K for Medium/High texture quality (`assets/terrain/<set>_medium.js`, about 41 MB
+    total), 1K for Low (`_low.js`, about 10 MB). That's 9 texture units, about 180 MB of
+    VRAM at 2K. 4K would be about 700 MB for ground mostly seen from 300 m up, so High
+    stays at 2K. Switching quality reloads them; loaded sets are cached across matches.
+  - The grass photo is dry olive and read as yellow steppe under this sun, so the shader
+    pulls it toward temperate green. Its detail is kept; only hue and saturation change.
+- **Building clusters** replace the procedural box city and the box villages
+  (`js/terrain.js` layout, `js/city.js` rendering):
+  - *Metro* (-700, -1000): "city pack" tile at x95, about 1.27 km square, towers up to
+    285 m. *Harbour* (-1500, 1350): the same tile at x60, rotated. It shares GPU memory
+    with Metro.
+  - *Skyline* (2150, -1000): the 19 New York landmark towers at x80 (up to 422 m) on a
+    paved 120 m street grid. Empty blocks are filled with panel apartment pairs.
+  - *Estate* (-2500, -1900): 20 panel blocks. Six *hamlets* of 2-6 panel blocks sit on
+    flat valley floors (deterministic from the seed). Panels are InstancedMeshes.
+  - Each cluster sits on a levelled pad: flat over the footprint, blending back into the
+    terrain over 220-450 m. The pad's level is the mean natural height.
+  - **Collision** uses height grids baked offline from the models (`js/city-data.js`,
+    147 KB). The grid cells are 4.75 m (metro), 2.85 m (harbour), 1.6 m (NY) and 1 m
+    (panel). Heights are rounded up so they're conservative. `buildingAt` /
+    `obstacleHeight` keep their API (about 1 µs per call), so the sim, AI, bullets and
+    missiles work unchanged, and a headless sim needs no 3D data.
+  - Models: `assets/models/city_{city,ny,panel}.glb.js` (13.5 / 3.8 / 1.8 MB). Build steps:
+    gltf-transform `dedup`/`prune`/`quantize`, plus `jpeg --formats "*" --quality 92`
+    (NY, panel) and `metalrough` (panel). The panel's LOD1 was dropped. A stray 10-triangle
+    fragment floating 180 m from One WTC was removed. Building texture VRAM is about
+    100 MB.
+  - Materials become plain MeshStandardMaterial (no clearcoat/specular extensions), with
+    colours used as-is like the rest of the scene.
+- **Clouds:** procedural cumulus billboards replace the soft round blobs. There are 4
+  variants (256x192), each a metaball base row with towers and small billows on top and
+  noise-broken edges. They're lit from above with a soft surface normal from the metaball
+  gradient: white tops, blue-grey flat bases. 34 clouds of 2-4 sprites, bases aligned at
+  1000-1650 m.
+- Tests now load `city-data.js`, so AI and multiplayer runs include building collision.
+  No building deaths in the AI furball runs.
+
+## v0.1.40: stable lakes, organic towns, roads
+- **Lake shorelines no longer jitter.** The flat water plane met gently sloping shores at a
+  shallow angle. At 2-4 km, 24-bit depth only resolves 0.5-2 m, so the plane and the
+  terrain z-fought and the shoreline crawled tens of metres as the camera moved. The plane
+  is gone. Water is now shaded in the terrain shader wherever the surface lies below the
+  water level, so the shoreline is exact per pixel and can't flicker.
+  - Look: depth-tinted colour (shallow green-teal to deep blue), two ripple normal
+    layers drifting in different directions, detail from the "Water 0341" photo
+    (`assets/terrain/water.js`, 330 KB), low roughness for sun glints, and a Fresnel sky
+    reflection. A damp band above the waterline and narrower beaches (dirt now fades out
+    2-6 m above the water instead of covering everything below 11 m).
+- **Organic town outlines.** Each town has a polar outline: a radius per angle, wobbled by
+  low harmonics.
+  - City tile (Metro, Harbour): connected building footprints from its height grid are
+    kept or dropped by that outline, with a few stragglers just outside. Dropped ones lose
+    their collision as well. Every triangle is assigned to the footprint under it. The
+    tile's own street mesh is replaced by a ground plane painted only around kept blocks
+    (pavement, then asphalt, transparent beyond). Note: the quantised glTF positions
+    needed manual denormalisation, because three r128's `getX()` doesn't do it.
+  - Skyline: 120 m street blocks and filler panels only inside the outline (tower blocks
+    always kept). Estates and hamlets get wobbly pads.
+  - Pads follow the outline (grown to cover every kept building), so the terrain blends
+    out along a natural edge instead of a rectangle.
+- **Roads** (`terrain.roads`, `js/roads.js`): A* over a 50 m grid where cost rises with
+  slope and altitude and lakes are impassable. A minimum spanning tree links every town,
+  plus short extra links and two highways leaving the map.
+  - Paths are string-pulled into long straight runs, Chaikin-smoothed, resampled every 8 m,
+    and stop where they reach a town's buildings.
+  - Drawn as ribbons draped on the rendered terrain triangles (same grid and
+    triangulation as the mesh), lifted 0.25 m with a depth bias.
+  - Procedural two-lane texture: gravel shoulders, white edge lines, dashed centre line.
+    Trees keep 16 m clear, and the verges are worn.
+  - `terrain.roadDist(x, z)` is available for gameplay or AI later.
+  - Built with the terrain (~0.37 s total for a new map, deterministic).
+
+## v0.1.41: real trees and forests
+- The cone trees are replaced by the four Jabami tree models (`assets/models/trees.glb.js`,
+  2.2 MB). They're merged into one GLB, textures are deduplicated (17 down to 9), and the
+  trunks are simplified to about 35 % (bark detail is invisible from the air).
+- **Three medium forests** (`terrain.forests`, about 1.1-1.9 km across, wobbly outlines,
+  on lowland or gentle hills away from towns). Trees sit on a jittered 11 m grid with
+  noise clearings, and are mature size (15-25 m). The ground underneath is a darker,
+  cooler forest floor (`aForest` vertex attribute in the terrain shader). Groves of
+  scattered trees across the map stay as before, now with the real models.
+- **Two tiers, so tens of thousands of trees stay cheap:**
+  - Within 280 m: real models as InstancedMeshes (one per type and sub-mesh), refilled
+    from a 200 m spatial grid each time the camera moves 30 m.
+  - Beyond that: every tree is an impostor in one InstancedMesh: two crossed vertical
+    cards plus a horizontal card for the view from above. Their textures are an atlas
+    rendered once from the real models at startup, so near and far match. A shader hides
+    impostors inside the near radius, and their alpha is boosted so distant crowns don't
+    thin out in the mipmaps.
+- Leaves: the anime textures are mint green, so the leaf shader desaturates and darkens them
+  toward a natural green and bends normals toward up, so foliage is lit like a canopy.
+  Impostor cards use the same up normal on both faces. Without it, back faces went
+  dark, which showed as black specks.
+- Trees are planted on the rendered terrain surface (`BF.meshHeightSampler`), and kept
+  off towns, roads (14 m), water and cliffs.
+- Licence note: the Jabami trees are under the Sketchfab Standard licence (see README).
+
+## v0.1.42: tree refill hitch fix, frame-rate readout
+- **Trees:** the near-tree refill uploaded every 3000-slot instance buffer in full (about
+  3 MB) each time the camera moved 30 m, several times a second at speed, which caused
+  frame hitches. It now uploads only the used slots, and refills every 60 m (radius NEAR + 90,
+  so coverage is unchanged).
+- **F2** toggles a frame-rate readout: average fps, frame time and the worst frame over 0.5 s.
+- Note on "input lag" at low frame rates: the sim and controls are frame-rate independent
+  (fixed 60 Hz steps). A GPU-bound frame still delays what you see, though, and roll shows it
+  most because attitude changes are instantly visible.
+
+## v0.1.43: cockpit rebuilt from reference images
+- `js/cockpit.js` is rewritten to match two reference renders of a Super Hornet front
+  office. It's all procedural geometry and canvas textures; no reference pixels are used.
+  - Canopy bow arch with bolts, grab pads and an outer rim. Sills and side walls.
+  - Glare shield hood with vents, standby compass, GO/NO-GO lights and a BIT button.
+  - HUD: two posts, a tinted hexagonal combiner and an AOA indexer. The indexer reads
+    the 313 band: green on speed, amber slow, red fast.
+  - Panel face with seams, screws and labels.
+  - Two DDIs with bezel buttons and knobs. Left: radar PPI, heading up, 5 km. Right:
+    attack B-scope with target range and countermeasure status.
+  - UFC keypad with a speed scratchpad.
+  - AMPCD colour moving map, built once from the real terrain (height tint, hill
+    shading, lakes, forests, roads, towns), heading up, 3 km, with jets as diamonds.
+  - Engine page (RPM, EGT and nozzle bars, AB tank, HP).
+  - Standby attitude ball, altimeter, airspeed and VSI dials.
+  - Canopy jettison handle, PUSH TO JETT button, caution lights, side consoles with
+    placards, stick grip.
+- Layout is authored in reference-image coordinates. The cockpit view uses a lens shift
+  (`camera.setViewOffset`) so the boresight sits 27 % down the screen, like the
+  reference. The world camera and the HUD symbology use the same shift, so aiming still
+  lines up. (`setViewOffset` sets `aspect = fullWidth / fullHeight`, so the real aspect is
+  passed as the width.)
+- In the cockpit the 2D radar overlay is hidden, because the left DDI is the radar.
+
+## v0.1.44: cockpit fixes and metal textures
+- **Holes fixed.** The panel face, side walls and hood were built from screen-space
+  polygons. Because fy runs downward, the triangles ended up facing away from the eye and
+  were back-face culled. The winding is now flipped where needed.
+- **HUD centred.** The boresight in cockpit view is now exactly the centre of the
+  combiner glass (`BF.COCKPIT_BORESIGHT`). The gun pipper sits on the boresight (rounds
+  fly along the nose); it used to be drawn 30 px above it. All symbology is laid out and
+  sized relative to the glass.
+- **Textures:** Poly Haven (CC0) blue_metal_plate (desaturated to grey) is used on the
+  panel face, hood, side walls, bezels and placards. metal_plate_02 is used on the canopy
+  arch. Both are 2K colour, normal and roughness maps (`assets/cockpit/*.js`, about 6 MB
+  total), loaded in the background, with the procedural look as the fallback.
+- Note: the file preview panel crops the right side of 1280 px renders, so the cockpit can
+  look off-centre there even when it's centred in the game.
 
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.

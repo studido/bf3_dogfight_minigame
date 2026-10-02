@@ -58,7 +58,7 @@ window.BF = window.BF || {};
         }
       }
       const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
-      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${0.35 + fastK * 0.25})`);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${0.16 + fastK * 0.22})`);
       g.fillStyle = vg; g.fillRect(0, 0, W, H);
       if (this.damageFlash > 0) {
         const dg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
@@ -113,7 +113,7 @@ window.BF = window.BF || {};
       }
 
       this.scorePanel(sim, me);
-      this.radar(sim, me, cfg);
+      if (!cockpit) this.radar(sim, me, cfg); // in the cockpit the left DDI is the radar
       this.vehiclePanel(me, sim, cfg);
       this.killFeed(dt);
 
@@ -305,7 +305,12 @@ window.BF = window.BF || {};
     // F/A-18-style green HUD symbology, clipped to the combiner glass.
     f18Hud(me, sim, cfg, R, cam) {
       const g = this.g, W = this.w, H = this.h, GR = '#7dff8a';
-      const cx = W / 2, cy = H / 2, hw = (R.x1 - R.x0) / 2;
+      // boresight on screen (the cockpit view uses a lens shift, so it isn't the centre)
+      const bs = new V3(0, 0, -10).applyMatrix4(cam.projectionMatrix);
+      const cx = (bs.x * 0.5 + 0.5) * W, cy = (-bs.y * 0.5 + 0.5) * H;
+      // Everything is laid out relative to the combiner glass, so it scales with it.
+      const gw = R.x1 - R.x0, gh = R.y1 - R.y0, hw = gw / 2, u = gw / 300;
+      const fs = (n) => Math.max(8, Math.round(n * u));
       const f = (H / 2) / Math.tan(cam.fov * BF.DEG / 2); // px per unit tan
       const fwd = BF.forwardOf(me.quat, new V3()), up = BF.upOf(me.quat, new V3()), right = BF.rightOf(me.quat, new V3());
       const pitch = Math.asin(BF.clamp(fwd.y, -1, 1)) / BF.DEG;
@@ -313,62 +318,64 @@ window.BF = window.BF || {};
       const hdg = ((Math.atan2(fwd.x, -fwd.z) / BF.DEG) + 360) % 360;
       const gLoad = 1 + (me.speed * BF.KMH) * Math.abs(me.rates.p * BF.DEG) / 9.81;
       const txt = (t, x, y, size = 13, align = 'center', col = GR) => {
-        g.font = `600 ${size}px Consolas, "Courier New", monospace`; g.textAlign = align; g.textBaseline = 'middle';
-        g.fillStyle = col; g.shadowColor = 'rgba(0,40,0,0.8)'; g.shadowBlur = 4; g.fillText(t, x, y); g.shadowBlur = 0;
+        g.font = `600 ${fs(size)}px Consolas, "Courier New", monospace`; g.textAlign = align; g.textBaseline = 'middle';
+        g.fillStyle = col; g.shadowColor = 'rgba(0,40,0,0.8)'; g.shadowBlur = 3; g.fillText(t, x, y); g.shadowBlur = 0;
       };
       g.save();
-      g.beginPath(); g.rect(R.x0, R.y0, R.x1 - R.x0, R.y1 - R.y0); g.clip();
-      g.strokeStyle = GR; g.lineWidth = 1.6; g.shadowColor = 'rgba(0,40,0,0.8)'; g.shadowBlur = 3;
+      g.beginPath(); g.rect(R.x0, R.y0, gw, gh); g.clip();
+      g.strokeStyle = GR; g.lineWidth = Math.max(1, 1.6 * u); g.shadowColor = 'rgba(0,40,0,0.8)'; g.shadowBlur = 3;
 
-      // Pitch ladder, rotated with roll around the boresight
+      // Pitch ladder, rotated with roll around the boresight (true angles, so it's conformal)
       g.save(); g.translate(cx, cy); g.rotate(-roll);
       for (let p = -90; p <= 90; p += 5) {
         const a = (p - pitch) * BF.DEG; if (Math.abs(a) > 0.6) continue;
-        const y = -f * Math.tan(a), w = p === 0 ? hw * 0.8 : hw * 0.3, gap = hw * 0.16;
-        g.setLineDash(p < 0 ? [7, 5] : []);
+        const y = -f * Math.tan(a), w = p === 0 ? hw * 0.75 : hw * 0.26, gap = hw * 0.14;
+        g.setLineDash(p < 0 ? [6 * u, 4 * u] : []);
         g.beginPath();
         g.moveTo(-gap - w, y); g.lineTo(-gap, y); g.moveTo(gap, y); g.lineTo(gap + w, y);
-        if (p !== 0) { const tick = p > 0 ? 7 : -7; g.moveTo(-gap - w, y); g.lineTo(-gap - w, y + tick); g.moveTo(gap + w, y); g.lineTo(gap + w, y + tick); }
+        if (p !== 0) { const tick = (p > 0 ? 6 : -6) * u; g.moveTo(-gap - w, y); g.lineTo(-gap - w, y + tick); g.moveTo(gap + w, y); g.lineTo(gap + w, y + tick); }
         g.stroke();
-        if (p !== 0) { txt(String(Math.abs(p)), -gap - w - 14, y, 11); txt(String(Math.abs(p)), gap + w + 14, y, 11); }
+        if (p !== 0) { txt(String(Math.abs(p)), -gap - w - 12 * u, y, 11); txt(String(Math.abs(p)), gap + w + 12 * u, y, 11); }
       }
       g.setLineDash([]); g.restore();
 
-      // Waterline / gun cross at boresight
+      // Waterline / gun cross at the boresight
+      const k = u;
       g.beginPath();
-      g.moveTo(cx - 22, cy); g.lineTo(cx - 10, cy); g.lineTo(cx - 5, cy + 7); g.lineTo(cx, cy); g.lineTo(cx + 5, cy + 7); g.lineTo(cx + 10, cy); g.lineTo(cx + 22, cy);
+      // short level ticks either side of the boresight (no 'W' over the pipper)
+      g.moveTo(cx - 32 * k, cy); g.lineTo(cx - 20 * k, cy); g.moveTo(cx + 20 * k, cy); g.lineTo(cx + 32 * k, cy);
       g.stroke();
-      if (me.weapon === 'cannon') { g.beginPath(); g.arc(cx, cy - 34, 16, 0, 7); g.moveTo(cx, cy - 34 - 3); g.lineTo(cx, cy - 34 + 3); g.stroke(); }
-      else { g.beginPath(); g.arc(cx, cy, hw * 0.42, 0, 7); g.stroke(); } // AIM-9 seeker circle
+      // Gun pipper on the boresight: that's where the rounds go (they fly along the nose)
+      if (me.weapon === 'cannon') { g.beginPath(); g.arc(cx, cy, 14 * k, 0, 7); g.stroke(); g.fillStyle = GR; g.fillRect(cx - 1.5 * k, cy - 1.5 * k, 3 * k, 3 * k); }
+      else { g.beginPath(); g.arc(cx, cy, hw * 0.4, 0, 7); g.stroke(); } // AIM-9 seeker circle
 
-      // Heading tape (top)
-      const ty = R.y0 + 24, span = 30;
-      const tw = hw * 0.62;
-      g.beginPath(); g.moveTo(cx - tw, ty + 10); g.lineTo(cx + tw, ty + 10); g.stroke();
+      // Heading tape along the top of the glass
+      const ty = R.y0 + gh * 0.07, span = 30, tw = hw * 0.55;
+      g.beginPath(); g.moveTo(cx - tw, ty + 8 * u); g.lineTo(cx + tw, ty + 8 * u); g.stroke();
       for (let h = Math.ceil((hdg - span) / 5) * 5; h <= hdg + span; h += 5) {
         const x = cx + (h - hdg) / span * tw, big = h % 10 === 0;
-        g.beginPath(); g.moveTo(x, ty + 10); g.lineTo(x, ty + (big ? 2 : 6)); g.stroke();
-        if (big && h % 30 === 0) txt(String(((h % 360) + 360) % 360 / 10 | 0).padStart(2, '0'), x, ty - 6, 11);
+        g.beginPath(); g.moveTo(x, ty + 8 * u); g.lineTo(x, ty + (big ? 2 : 5) * u); g.stroke();
+        if (big && h % 30 === 0) txt(String(((h % 360) + 360) % 360 / 10 | 0).padStart(2, '0'), x, ty - 5 * u, 10);
       }
-      txt(String(Math.round(hdg)).padStart(3, '0'), cx, ty + 24, 13); g.strokeRect(cx - 18, ty + 15, 36, 18);
+      txt(String(Math.round(hdg)).padStart(3, '0'), cx, ty + 19 * u, 12); g.strokeRect(cx - 16 * u, ty + 12 * u, 32 * u, 15 * u);
 
-      // Airspeed (left) and altitude (right) boxes
-      const bx = cx - hw * 0.72, ax = cx + hw * 0.72, by = cy - 30;
+      // Airspeed (left) and altitude (right) boxes, level with the boresight
+      const bx = R.x0 + gw * 0.15, ax = R.x1 - gw * 0.15, by = cy - 10 * u, bw = 52 * u, bh = 20 * u;
       const s = Math.round(me.speed), sweet = Math.abs(s - 313) <= 3, band = s >= 300 && s <= 320;
-      g.strokeStyle = sweet ? GOLD : GR; g.lineWidth = sweet ? 2.4 : 1.6; g.strokeRect(bx - 32, by - 12, 64, 24); g.strokeStyle = GR; g.lineWidth = 1.6;
-      txt(String(s), bx, by, 16, 'center', sweet ? GOLD : GR);
-      if (band) txt(sweet ? '313' : '◄ ►', bx, by + 22, 10, 'center', sweet ? GOLD : GR);
-      g.strokeRect(ax - 34, by - 12, 68, 24); txt(String(Math.round(me.pos.y)), ax, by, 16);
-      txt(`R ${Math.round(me.altitude)}`, ax, by + 22, 11);
-      // Left column: Mach, G, throttle state
-      txt(`M ${(me.speed * BF.KMH / 340).toFixed(2)}`, bx - 32, by + 48, 12, 'left');
-      txt(`G ${gLoad.toFixed(1)}`, bx - 32, by + 66, 12, 'left');
-      const c = me.ctl; txt(c.brake > 0.05 ? 'SPD BRK' : me.boosting ? 'AB' : c.throttleUp > 0.05 ? 'MIL' : '', bx - 32, by + 84, 12, 'left');
-      // Right column: weapon + countermeasure
-      txt(me.weapon === 'missile' ? `9X ${me.missiles}` : me.overheated ? 'GUN HOT' : 'GUN', ax + 34, by + 48, 12, 'right');
-      if (me.weapon === 'missile' && me.lock.locked) txt('SHOOT', ax + 34, by + 66, 12, 'right');
+      g.strokeStyle = sweet ? GOLD : GR; g.strokeRect(bx - bw / 2, by - bh / 2, bw, bh); g.strokeStyle = GR;
+      txt(String(s), bx, by, 15, 'center', sweet ? GOLD : GR);
+      if (band) txt(sweet ? '313' : '◄ ►', bx, by + 18 * u, 10, 'center', sweet ? GOLD : GR);
+      g.strokeRect(ax - bw / 2, by - bh / 2, bw, bh); txt(String(Math.round(me.pos.y)), ax, by, 15);
+      txt(`R ${Math.round(me.altitude)}`, ax, by + 18 * u, 10);
+      // Lower corners: Mach, G, throttle state (left); weapon + countermeasure (right)
+      const ly = R.y1 - gh * 0.28, step = 15 * u, lx = R.x0 + gw * 0.05, rx = R.x1 - gw * 0.05;
+      txt(`M ${(me.speed * BF.KMH / 340).toFixed(2)}`, lx, ly, 11, 'left');
+      txt(`G ${gLoad.toFixed(1)}`, lx, ly + step, 11, 'left');
+      const c = me.ctl; txt(c.brake > 0.05 ? 'SPD BRK' : me.boosting ? 'AB' : c.throttleUp > 0.05 ? 'MIL' : '', lx, ly + step * 2, 11, 'left');
+      txt(me.weapon === 'missile' ? `9X ${me.missiles}` : me.overheated ? 'GUN HOT' : 'GUN', rx, ly, 11, 'right');
+      if (me.weapon === 'missile' && me.lock.locked) txt('SHOOT', rx, ly + step, 11, 'right');
       const cd = Math.max(0, me.counterReadyT - sim.t);
-      txt(`${me.loadout === 'ecm' ? 'ECM' : 'FLR'} ${cd > 0 ? Math.ceil(cd) : 'RDY'}`, ax + 34, by + 84, 12, 'right');
+      txt(`${me.loadout === 'ecm' ? 'ECM' : 'FLR'} ${cd > 0 ? Math.ceil(cd) : 'RDY'}`, rx, ly + step * 2, 11, 'right');
       g.restore();
     }
   };

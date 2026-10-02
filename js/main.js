@@ -7,6 +7,7 @@
   // ---------- Renderer / scene ----------
   const glCanvas = $('gl');
   const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, powerPreference: 'high-performance' });
+  BF._renderer = renderer; // for one-off offscreen renders (tree impostor atlas)
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   // Everything renders through the post chain (post.js): HDR bloom, filmic tone map,
   // BF3 teal/warm grade, vignette, sun glare, FXAA. Scene stays linear; the grade
@@ -14,6 +15,26 @@
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(cfg.camera.baseFov, 1, 0.5, 30000);
   const post = BF.buildPost(renderer, scene, camera);
+  // F/A-18 model at the chosen texture quality (high 4K / medium 2K / low 1K). Loads in the
+  // background; jets already on screen get swapped to the new model when it's ready.
+  function applyTextureQuality(q) {
+    if (BF.setTerrainQuality) BF.setTerrainQuality(q); // ground textures: 2K (Medium/High) or 1K (Low)
+    BF.loadJetModels(renderer, q).then((ok) => {
+      // Show what is actually active, so a failed load is visible rather than silent
+      const act = BF.jetModelQuality(), label = { low: '1K', medium: '2K', high: '4K' };
+      $('p-texq-active').textContent = act ? `active: ${label[act]}` : 'model not loaded (primitive jet)';
+      if (!ok && q !== act) toast('Could not load the ' + (label[q] || q) + ' jet textures, keeping ' + (label[act] || 'the basic jet'));
+      if (!ok || !sim) return;
+      for (const j of sim.jets) {
+        const old = models.get(j.id); if (!old) continue;
+        const mdl = BF.buildJetModel(j.team);
+        mdl.position.copy(old.position); mdl.quaternion.copy(old.quaternion); mdl.visible = old.visible;
+        scene.remove(old); scene.add(mdl); models.set(j.id, mdl);
+      }
+    });
+  }
+  const savedTexQ = (() => { try { return JSON.parse(localStorage.getItem('bf3dog.opts') || '{}').texQuality; } catch (e) { return null; } })();
+  applyTextureQuality(savedTexQ || 'medium');
   const hud = new BF.HUD($('hud'));
   const input = new BF.Input(glCanvas);
   const audio = new BF.Audio();
@@ -134,6 +155,16 @@
     BF.applyAiDifficulty(cfg, e.target.value); $('opt-aidiff').value = e.target.value;
     try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.aiDiff = e.target.value; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
   };
+  // Texture quality (start screen + pause menu, saved)
+  for (const id of ['opt-texq', 'p-texq']) {
+    $(id).value = savedTexQ || 'medium';
+    $(id).onchange = (e) => {
+      const q = e.target.value; $('opt-texq').value = q; $('p-texq').value = q;
+      try { const o = JSON.parse(localStorage.getItem('bf3dog.opts') || '{}'); o.texQuality = q; localStorage.setItem('bf3dog.opts', JSON.stringify(o)); } catch (err) {}
+      applyTextureQuality(q);
+      toast(q === 'high' ? 'Loading 4K jet textures…' : `Jet textures: ${q === 'low' ? '1K' : '2K'}`);
+    };
+  }
   $('p-vol').value = audio.volume; $('p-vol').oninput = (e) => audio.setVolume(+e.target.value);
   $('resetbinds').onclick = () => { input.binds = BF.cloneConfig(BF.DEFAULT_BINDS); input.save(); renderBinds(); };
 
@@ -557,6 +588,13 @@
   function updateCamera(dt, pos, quat) {
     const C = cfg.camera;
     const model = models.get(me.id);
+    // Cockpit view: lens shift puts the boresight 27 % down the screen (HUD high, panel
+    // filling the lower part, like the real view); other views are centred.
+    const wantShift = camMode === 'cockpit' && me.alive;
+    // (setViewOffset sets aspect = fullWidth / fullHeight, so pass the real aspect as the width)
+    const asp = innerWidth / innerHeight;
+    if (wantShift && !(camera.view && camera.view.enabled && Math.abs(camera.view.fullWidth - asp) < 1e-4)) camera.setViewOffset(asp, 1, 0, (1 - 2 * BF.COCKPIT_BORESIGHT) / 2, asp, 1);
+    else if (!wantShift && camera.view && camera.view.enabled) camera.clearViewOffset();
     if (camMode === 'cockpit' && me.alive) {
       model.visible = false;
       camera.position.copy(pos).add(tmpV.set(0, 0.95, -4.2).applyQuaternion(quat));
@@ -594,11 +632,23 @@
   }
 
   // ---------- Main loop ----------
+  // F2: frame-rate readout (average fps, frame time and the worst frame over 0.5 s)
+  const fpsEl = document.createElement('div');
+  fpsEl.style.cssText = 'position:fixed;right:8px;top:8px;z-index:50;font:12px monospace;color:#cfe;background:rgba(0,0,0,0.45);padding:3px 6px;border-radius:3px;display:none;pointer-events:none';
+  document.body.appendChild(fpsEl);
+  let fpsN = 0, fpsT = 0, fpsWorst = 0;
+  addEventListener('keydown', (e) => { if (e.code === 'F2') { e.preventDefault(); fpsEl.style.display = fpsEl.style.display === 'none' ? 'block' : 'none'; } });
   let last = performance.now(), acc = 0, pendSwitch = false, pendCounter = false, pendFire = false, pendSelect = null;
   const iPos = new V3(), iQuat = new Q(), dqQ = new Q();
   function frame(now) {
     requestAnimationFrame(frame);
+    const rawDt = (now - last) / 1000;
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    fpsN++; fpsT += rawDt; fpsWorst = Math.max(fpsWorst, rawDt);
+    if (fpsT >= 0.5) {
+      if (fpsEl.style.display !== 'none') fpsEl.textContent = `${Math.round(fpsN / fpsT)} fps  ${(fpsT / fpsN * 1000).toFixed(1)} ms  worst ${(fpsWorst * 1000).toFixed(0)} ms`;
+      fpsN = 0; fpsT = 0; fpsWorst = 0;
+    }
     if (!started) { post.render(dt); return; }
     const ctl = input.poll(dt);
     me.ctlDevice = input.lastDevice;
@@ -675,6 +725,7 @@
     updateCamera(dt, iPos, iQuat);
     world.update(camera.position, sim.t);
     effects.update(paused ? 0 : dt, sim, camera, innerHeight * renderer.getPixelRatio());
+    BF.ensureJetEnv(renderer);
     post.setSun(world.sunDir, camera);
     post.render(dt);
     combiner = null;
@@ -696,5 +747,5 @@
   requestAnimationFrame(frame);
 
   // Expose for debugging / future netcode
-  window.game = { get sim() { return sim; }, get me() { return me; }, input, camera };
+  window.game = { get sim() { return sim; }, get me() { return me; }, get world() { return world; }, get camMode() { return camMode; }, set camMode(v) { camMode = v; }, input, camera, post, models, scene, hud };
 })();

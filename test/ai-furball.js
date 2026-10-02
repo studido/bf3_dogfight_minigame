@@ -89,7 +89,7 @@ class Q {
 globalThis.window = globalThis;
 globalThis.THREE = { Vector3: V3, Quaternion: Q };
 
-for (const f of ['config.js', 'util.js', 'terrain.js', 'sim.js', 'ai.js']) {
+for (const f of ['config.js', 'util.js', 'city-data.js', 'terrain.js', 'sim.js', 'ai.js']) {
   const code = fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8');
   (0, eval)(code);
 }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dogfight 313 — v0.2 prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=0.1.33">
+  <link rel="stylesheet" href="css/style.css?v=0.1.44">
 </head>
 <body>
   <canvas id="gl"></canvas>
@@ -22,6 +22,7 @@
 <label>AI difficulty <select id="opt-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="opt-aimsl" type="checkbox" checked> AI uses missiles</label>
           <label>AI ECM jammer <select id="opt-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
+          <label>Texture quality <select id="opt-texq"><option value="low">Low (1K)</option><option value="medium" selected>Medium (2K)</option><option value="high">High (4K)</option></select></label>
           <label>Chase camera <select id="opt-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
         </div>
         <button id="play" class="big">FLY</button>
@@ -45,6 +46,7 @@
             <p><b>L3</b> camera · <b>B / ○</b> look back · <b>Start</b> menu</p></div>
         </div>
         <p class="tip">Hold the speed box <b class="gold">gold (313)</b> in a turn fight. Feather <b>S</b> — the throttle springs back to cruise when you let go.</p>
+        <p class="credits">F/A-18E/F model: <a href="https://sketchfab.com/3d-models/boeing-fa-18ef-super-hornet-f71e9fea01e24fea9b1b380161d21d38" target="_blank" rel="noopener">"Boeing F/A-18E/F Super Hornet"</a> by andertan, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (resized, re-oriented, retinted). Buildings: "New York Buildings" by sumitmangela and "Detailed 12 storey panel apartment building" by bean (alwayshasbean), <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (optimised, rearranged); "city pack" by Pasha (Sketchfab Standard). Trees: "Jabami Anime Tree" by JABAMI Production (Sketchfab Standard). Sky and ground textures: Poly Haven, CC0.</p>
       </div>
     </div>
 
@@ -61,6 +63,7 @@
 <label>AI difficulty <select id="p-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="p-aimsl" type="checkbox"> AI uses missiles</label>
           <label>AI ECM jammer <select id="p-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
+          <label>Texture quality <select id="p-texq"><option value="low">Low (1K)</option><option value="medium" selected>Medium (2K)</option><option value="high">High (4K)</option></select><small id="p-texq-active"></small></label>
           <label>Chase camera <select id="p-camstyle"><option value="roll">BF3 roll cam</option><option value="chase">Full chase</option></select></label>
           <label>Countermeasure <select id="p-loadout"><option value="flares">Flares</option><option value="ecm">ECM jammer</option></select></label>
           <label>Mouse sensitivity <input id="p-sens" type="range" min="0.2" max="3" step="0.05"></label>
@@ -108,31 +111,37 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <!-- r128 post-processing example scripts (MIT, three.js project), vendored for offline play.
        ORDER MATTERS: EffectComposer.js defines THREE.Pass/FullScreenQuad used by the pass files. -->
-  <script src="js/vendor/CopyShader.js?v=0.1.33"></script>
-  <script src="js/vendor/LuminosityHighPassShader.js?v=0.1.33"></script>
-  <script src="js/vendor/FXAAShader.js?v=0.1.33"></script>
-  <script src="js/vendor/EffectComposer.js?v=0.1.33"></script>
-  <script src="js/vendor/MaskPass.js?v=0.1.33"></script>
-  <script src="js/vendor/ShaderPass.js?v=0.1.33"></script>
-  <script src="js/vendor/RenderPass.js?v=0.1.33"></script>
-  <script src="js/vendor/UnrealBloomPass.js?v=0.1.33"></script>
-  <script src="js/config.js?v=0.1.33"></script>
-  <script src="js/util.js?v=0.1.33"></script>
-  <script src="js/input.js?v=0.1.33"></script>
-  <script src="js/terrain.js?v=0.1.33"></script>
-  <script src="js/sim.js?v=0.1.33"></script>
-  <script src="js/ai.js?v=0.1.33"></script>
-  <script src="js/city.js?v=0.1.33"></script>
-  <script src="js/world.js?v=0.1.33"></script>
-  <script src="js/jet-model.js?v=0.1.33"></script>
-  <script src="js/cockpit.js?v=0.1.33"></script>
-  <script src="js/rollcam.js?v=0.1.33"></script>
-  <script src="js/effects.js?v=0.1.33"></script>
-  <script src="js/hud.js?v=0.1.33"></script>
-  <script src="js/audio.js?v=0.1.33"></script>
-  <script src="js/tuning-panel.js?v=0.1.33"></script>
-  <script src="js/net.js?v=0.1.33"></script>
-  <script src="js/post.js?v=0.1.33"></script>
-  <script src="js/main.js?v=0.1.33"></script>
+  <script src="js/vendor/CopyShader.js?v=0.1.44"></script>
+  <script src="js/vendor/LuminosityHighPassShader.js?v=0.1.44"></script>
+  <script src="js/vendor/FXAAShader.js?v=0.1.44"></script>
+  <script src="js/vendor/EffectComposer.js?v=0.1.44"></script>
+  <script src="js/vendor/MaskPass.js?v=0.1.44"></script>
+  <script src="js/vendor/ShaderPass.js?v=0.1.44"></script>
+  <script src="js/vendor/RenderPass.js?v=0.1.44"></script>
+  <script src="js/vendor/UnrealBloomPass.js?v=0.1.44"></script>
+  <script src="js/vendor/GLTFLoader.js?v=0.1.44"></script>
+  <script src="assets/sky/sky.jpg.js?v=0.1.44"></script>
+  <script src="js/config.js?v=0.1.44"></script>
+  <script src="js/util.js?v=0.1.44"></script>
+  <script src="js/input.js?v=0.1.44"></script>
+  <script src="js/city-data.js?v=0.1.44"></script>
+  <script src="js/terrain.js?v=0.1.44"></script>
+  <script src="js/sim.js?v=0.1.44"></script>
+  <script src="js/ai.js?v=0.1.44"></script>
+  <script src="js/city.js?v=0.1.44"></script>
+  <script src="js/terrain-render.js?v=0.1.44"></script>
+  <script src="js/roads.js?v=0.1.44"></script>
+  <script src="js/trees.js?v=0.1.44"></script>
+  <script src="js/world.js?v=0.1.44"></script>
+  <script src="js/jet-model.js?v=0.1.44"></script>
+  <script src="js/cockpit.js?v=0.1.44"></script>
+  <script src="js/rollcam.js?v=0.1.44"></script>
+  <script src="js/effects.js?v=0.1.44"></script>
+  <script src="js/hud.js?v=0.1.44"></script>
+  <script src="js/audio.js?v=0.1.44"></script>
+  <script src="js/tuning-panel.js?v=0.1.44"></script>
+  <script src="js/net.js?v=0.1.44"></script>
+  <script src="js/post.js?v=0.1.44"></script>
+  <script src="js/main.js?v=0.1.44"></script>
 </body>
 </html>

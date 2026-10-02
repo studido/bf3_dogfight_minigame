@@ -12,7 +12,7 @@ globalThis.THREE = stub;
 
 const fs = require('node:fs');
 const path = require('node:path');
-for (const f of ['config.js', 'util.js', 'terrain.js', 'sim.js']) {
+for (const f of ['config.js', 'util.js', 'city-data.js', 'terrain.js', 'sim.js']) {
   (0, eval)(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'));
 }
 

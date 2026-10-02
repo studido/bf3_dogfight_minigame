@@ -76,3 +76,16 @@ in the browser.
 | `docs/PROGRESS.md` | Build status and next steps |
 
 Original project: no Battlefield assets, names or audio are used.
+
+## Credits
+
+- F/A-18E/F Super Hornet 3D model: ["Boeing F/A-18E/F \"Super Hornet\""](https://sketchfab.com/3d-models/boeing-fa-18ef-super-hornet-f71e9fea01e24fea9b1b380161d21d38) by [andertan](https://sketchfab.com/andertan), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Changes: converted to metal-roughness materials, textures resized (4K/2K/1K variants), geometry quantised, re-oriented for the game; team paint tint applied at runtime.
+- Sky: ["Kloofendal 48d Partly Cloudy (Pure Sky)"](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky) from Poly Haven, CC0.
+- Ground textures: Poly Haven ["Aerial Grass Rock"](https://polyhaven.com/a/aerial_grass_rock), ["Forrest Ground 01"](https://polyhaven.com/a/forrest_ground_01), ["Aerial Rocks 02"](https://polyhaven.com/a/aerial_rocks_02), ["Snow 02"](https://polyhaven.com/a/snow_02), CC0. Resized to 2K/1K, normal and roughness packed into one texture.
+- City tile: ["city pack"](https://sketchfab.com/3d-models/city-pack-6456747d1bfe42f59d388ca555571f2f) by [Pasha](https://sketchfab.com/Pasha.), [Sketchfab Standard licence](https://sketchfab.com/licenses). Optimised (deduplicated, quantised).
+- ["New York Buildings"](https://sketchfab.com/3d-models/new-york-buildings-e7922fe0f7b14ed786f84529f9217dac) by [sumitmangela](https://sketchfab.com/sumitmangela), [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Changes: textures resized to 1K and JPEG-compressed, geometry quantised, a stray fragment removed, towers rearranged.
+- ["Detailed 12 storey panel apartment building"](https://sketchfab.com/3d-models/detailed-12-storey-panel-apartment-building-cb7064bec48845fea62a830b2c692fb1) by [bean (alwayshasbean)](https://sketchfab.com/alwayshasbean), [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Changes: converted to metal-roughness, JPEG textures, LOD1 removed.
+- Lake ripple texture: derived from the "Water 0341" photo texture supplied with the project (source/licence: see the original download).
+- Trees: "Jabami Anime Tree" v1, v2, v3 and v5 by [JABAMI Production](https://sketchfab.com/JabamiProduction), [Sketchfab Standard licence](https://sketchfab.com/licenses). Merged into one file, trunks simplified, leaves recoloured in the shader.
+- Cockpit textures: Poly Haven ["Blue Metal Plate"](https://polyhaven.com/a/blue_metal_plate) and ["Metal Plate 02"](https://polyhaven.com/a/metal_plate_02), CC0 (resized to 2K, desaturated).
+- three.js r128 and its example scripts (EffectComposer, UnrealBloomPass, FXAA, GLTFLoader): MIT, three.js authors.
