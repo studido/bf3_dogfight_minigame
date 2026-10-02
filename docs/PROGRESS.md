@@ -696,6 +696,81 @@ desync tuning — friends' rule: don't).
 - Note: the file preview panel crops the right side of 1280 px renders, so the cockpit can
   look off-centre there even when it's centred in the game.
 
+## v0.1.45: Kenney particle textures
+- `assets/particles.js`: a 1024 px atlas (4x4 cells) built from Kenney's Particle Pack (CC0):
+  4 smoke puffs, 2 fire puffs, 2 muzzle flashes, spark, 2 star glints, small glow, blast
+  burst, dirt debris, soft dot and shockwave ring. About 0.5 MB, loaded with the page.
+- The particle shader samples a cell per particle with its own rotation and spin. It falls
+  back to the old soft dots if the atlas is missing.
+- Effects:
+  - Explosions: blast flash, shockwave ring, rolling textured fireball, sparks with
+    gravity, then billowing dark smoke.
+  - New nose-gun muzzle flash per round, scaled down when the camera is in the cockpit,
+    with a little gun smoke.
+  - Cannon hits: star flash plus sparks. Ground impacts: dust plus dirt clods.
+  - Flares: star glints. Missile, damage, debris and ECM smoke now use the smoke textures.
+
+## v0.1.46: recorded engine, afterburner and cannon sounds
+- `assets/sounds/sounds.js` (about 750 KB, base64 MP3) holds five clips cut from three
+  Freesound recordings. Every loop is level-flattened (no pumping) and
+  crossfaded, with padding so `loopStart`/`loopEnd` sit inside the buffer and loop seamlessly:
+  - `engine`: F-15 cockpit drone, 9.8 s loop.
+  - `howl`: F-4 J79 power howl, 0.6-5.8 s of the F-4 recording.
+  - `ab`: afterburner roar, 22-28.6 s.
+  - `abLight`: afterburner light-off thump, 6.0-9.6 s, fades out.
+  - `gun`: the real M61A2 burst. Attack, then a 0.8-2.95 s loop region with a
+    crossfaded seam, then the 3.0 s+ spin-down tail.
+- Engine: throttle state (brake / cruise / mil / AB) is smoothed like spool-up and drives
+  the pitch of the drone and the howl. Speed adds a little pitch too.
+  - In the cockpit: the drone dominates and the exterior layers go through a 1.4 kHz low-pass.
+  - Outside: the howl and roar dominate.
+- Afterburner: the roar fades in when the afterburner lights (fast attack, slower release),
+  with a light-off thump (at most once per 1.2 s).
+- Cannon: a held-trigger voice. It starts with the burst's attack, loops while rounds keep
+  coming (within 90 ms), and plays the spin-down tail on release or overheat. The nearest
+  other jet that's firing uses the same voice, quieter and low-passed with distance.
+- Lock and warning tones, explosions, flares and the rest stay synthesised. The synth
+  engine and gun are the fallback until the recordings decode.
+- Licence note: the F-15 drone is CC BY-NC (credited on the start screen and in the
+  README). The other two are CC0.
+
+## v0.1.47: missile model, launch and trail
+- **The missiles on the jet are real parts now.** `tools/splitmsl.mjs` moves the two outer
+  underwing missiles out of the merged F/A-18 meshes (by connected component and zone) into
+  `missile_L` / `missile_R` nodes in all three quality GLBs. The pylon rails stay on the jet.
+  The missile just fired disappears from its pylon and comes back on reload (L first, then R).
+- **In-flight model:** `BF.missileModel()` builds the flying missile from that same
+  geometry. It shares buffers with the jet, so it costs no extra memory. Its bounds are
+  computed from the indexed, dequantised vertices, because the shared accessors span the
+  whole airframe. It also returns the jet-local rail positions.
+- **Launch:** the model starts on its pylon and slides onto the sim's path (exponential
+  blend, about 0.12 s), with a motor flash and a puff of smoke at the rail.
+- **In flight:** an additive motor plume cone that flickers, a small hot glow at the
+  nozzle, and a smoke trail laid down by distance (every 2.2 m along the path, so it's
+  unbroken at any frame rate). The smoke billows from 1.6 to about 15 m, drifts up slightly
+  and lingers 5-7.5 s, with ember sparks along it.
+  - The smoke pool went from 6000 to 9000 particles.
+  - The primitive-jet fallback gets a plain cylinder missile.
+
+## v0.1.48: HUD glass seated on its base
+- The combiner glass was about 8 cm above the HUD base on the glare shield, with the posts
+  showing underneath. It now spans ref fy 0.173-0.42, so its lower edge sits on the base.
+  The posts are shortened to match.
+- The cockpit-view boresight follows the glass centre (`BF.COCKPIT_BORESIGHT` = 0.3565), so
+  the pipper stays centred on the glass. It's now about 9 % of the screen lower, which also
+  shows more sky above the nose.
+
+## v0.1.49: cockpit hit markers, radar in cockpit, jet health slider
+- Cockpit view now shows the white hit marker on the boresight, matching the chase view.
+- The regular 2D air radar is visible in cockpit view again.
+- **Jet health** slider on the start screen: 10-200, step 5, default 50 (half the old 100),
+  saved with the other options.
+  - Single player: applied to `cfg.jet.health` at match start.
+  - Multiplayer: the host's value goes into the lobby settings (`jetHealth`) and is
+    applied on every machine. The lobby summary shows it.
+  - The relay passes settings through untouched, so no server change is needed.
+  - Damage values are unchanged, so 50 HP means about half as many hits to kill.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

@@ -16,8 +16,9 @@
 window.BF = window.BF || {};
 
 // Boresight (where the nose / guns point) on screen in cockpit view: exactly the centre of
-// the HUD combiner glass (glass spans ref fy 0.098..0.345, + the 0.06 layout shift).
-BF.COCKPIT_BORESIGHT = (0.098 + 0.345) / 2 + 0.06;
+// the HUD combiner glass (glass spans ref fy 0.173..0.42, + the 0.06 layout shift). The
+// glass sits on the HUD base on the glare shield (v0.1.48: it used to float ~8 cm above it).
+BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
 
 (() => {
   const V3 = THREE.Vector3;
@@ -184,15 +185,15 @@ BF.COCKPIT_BORESIGHT = (0.098 + 0.345) / 2 + 0.06;
 
       // ---------- HUD ----------
       const HD = 0.95;
-      beam(S(0.428, 0.165, HD), S(0.434, 0.445, 0.9), 0.012, 0.03, M.black);
-      beam(S(0.572, 0.165, HD), S(0.566, 0.445, 0.9), 0.012, 0.03, M.black);
+      beam(S(0.428, 0.24, HD), S(0.434, 0.445, 0.9), 0.012, 0.03, M.black);
+      beam(S(0.572, 0.24, HD), S(0.566, 0.445, 0.9), 0.012, 0.03, M.black);
       plate(0.425, 0.425, 0.575, 0.47, 0.92, M.bezel, 0.05);
-      const glassRef = [[0.437, 0.098], [0.563, 0.098], [0.577, 0.15], [0.574, 0.345], [0.426, 0.345], [0.423, 0.15]];
+      const glassRef = [[0.437, 0.173], [0.563, 0.173], [0.577, 0.225], [0.574, 0.42], [0.426, 0.42], [0.423, 0.225]];
       this.glassRef = glassRef; this.HD = HD;
       {
         const c = canvas(64, 256), g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
         gr.addColorStop(0, 'rgba(170,255,235,0.30)'); gr.addColorStop(1, 'rgba(150,235,215,0.14)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 256);
-        const glass = poly(glassRef, () => HD, new THREE.MeshBasicMaterial({ map: texOf(c), transparent: true, depthWrite: false, side: THREE.DoubleSide }), [0.42, 0.09, 0.58, 0.35]);
+        const glass = poly(glassRef, () => HD, new THREE.MeshBasicMaterial({ map: texOf(c), transparent: true, depthWrite: false, side: THREE.DoubleSide }), [0.42, 0.165, 0.58, 0.425]);
         glass.renderOrder = 10;
         const edge = glassRef.map(([x, y]) => S(x, y, HD - 0.002)); edge.push(edge[0]);
         add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: 0x8fd8c6, transparent: true, opacity: 0.6 })));

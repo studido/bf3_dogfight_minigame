@@ -92,7 +92,16 @@ window.BF = window.BF || {};
       }
 
       const cockpit = camMode === 'cockpit' && me.alive && S.combiner;
-      if (cockpit) { this.f18Hud(me, sim, cfg, S.combiner, cam); this.warnings(me, sim, cfg); }
+      if (cockpit) {
+        this.f18Hud(me, sim, cfg, S.combiner, cam); this.warnings(me, sim, cfg);
+        // Hit marker on the boresight (where the rounds go), same as the chase-view one
+        if (this.hitMarkerT > 0) {
+          const bs = new V3(0, 0, -10).applyMatrix4(cam.projectionMatrix), hx = (bs.x * 0.5 + 0.5) * W, hy = (-bs.y * 0.5 + 0.5) * H;
+          g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath();
+          for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { g.moveTo(hx + sx * 7, hy + sy * 7); g.lineTo(hx + sx * 14, hy + sy * 14); }
+          g.stroke(); this.hitMarkerT -= dt;
+        }
+      }
       else if (me.alive) {
         // Aim reticle: where the nose points, far ahead
         const aim = this.project(tmp.copy(me.pos).addScaledVector(BF.forwardOf(me.quat, new V3()), 600), cam);
@@ -113,7 +122,7 @@ window.BF = window.BF || {};
       }
 
       this.scorePanel(sim, me);
-      if (!cockpit) this.radar(sim, me, cfg); // in the cockpit the left DDI is the radar
+      this.radar(sim, me, cfg);
       this.vehiclePanel(me, sim, cfg);
       this.killFeed(dt);
 

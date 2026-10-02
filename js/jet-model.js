@@ -188,6 +188,42 @@ BF.buildJetModelPrimitive = (team) => {
     });
   };
   BF.jetModelQuality = () => current;
+
+  // ---- In-flight missile model, taken from the jet model's own missile ----
+  // Returns { obj, rails: [R, L] (jet-local launch points), length } built from the current
+  // templates, or null while only the primitive jet exists. The missile points along -z.
+  let missileInfo = null, missileFor = null;
+  BF.missileModel = () => {
+    if (!templates) return null;
+    if (missileFor === templates) return missileInfo;
+    missileFor = templates; missileInfo = null;
+    const root = templates[0]; root.updateMatrixWorld(true);
+    const box = (node) => {
+      // Bounds from the indexed vertices (the shared quantised accessors span the whole
+      // airframe, so geometry.boundingBox would be the whole jet)
+      const b = new THREE.Box3(), v = new THREE.Vector3();
+      node.traverse((o) => {
+        if (!o.isMesh) return;
+        const pos = o.geometry.attributes.position, idx = o.geometry.index, arr = pos.array;
+        const nq = !pos.normalized ? 1 : arr instanceof Int16Array ? 1 / 32767 : arr instanceof Uint16Array ? 1 / 65535 : arr instanceof Int8Array ? 1 / 127 : arr instanceof Uint8Array ? 1 / 255 : 1;
+        const n = idx ? idx.count : pos.count;
+        for (let i = 0; i < n; i++) { v.fromBufferAttribute(pos, idx ? idx.getX(i) : i).multiplyScalar(nq).applyMatrix4(o.matrixWorld); b.expandByPoint(v); }
+      });
+      return b;
+    };
+    const nodes = ['missile_R', 'missile_L'].map((n) => root.getObjectByName(n));
+    if (!nodes[0] || !nodes[1]) return null;
+    const boxes = nodes.map(box), rails = boxes.map((b) => b.getCenter(new THREE.Vector3()));
+    const src = nodes[1], c = rails[1], size = boxes[1].getSize(new THREE.Vector3());
+    const obj = new THREE.Group(), inner = new THREE.Group(); obj.add(inner);
+    inner.position.copy(c).negate();
+    src.traverse((o) => {
+      if (!o.isMesh) return;
+      const m = new THREE.Mesh(o.geometry, o.material); m.matrixAutoUpdate = false; m.matrix.copy(o.matrixWorld); inner.add(m);
+    });
+    missileInfo = { obj, rails, length: Math.max(size.x, size.z) };
+    return missileInfo;
+  };
   BF.jetModelsReady = () => !!templates;
 
   BF.buildJetModel = (team) => {
@@ -195,9 +231,10 @@ BF.buildJetModelPrimitive = (team) => {
     const g = new THREE.Group();
     g.add(templates[team === 1 ? 1 : 0].clone(true)); // shares geometry + materials
 
-    // The model already carries its AIM-9s (merged into the airframe meshes, so they can't be
-    // hidden per shot yet; would need splitting the source .blend). Empty list = no-op.
-    g.userData.missiles = [];
+    // The two outer underwing missiles are their own nodes (split offline, v0.1.47), so the
+    // one just fired disappears from the pylon and comes back on reload. Order [R, L]:
+    // main.js shows index i while i < missiles left, so L goes first, then R.
+    g.userData.missiles = ['missile_R', 'missile_L'].map((n) => g.getObjectByName(n)).filter(Boolean);
 
     // Afterburner: hot nozzle glow + additive flame cone per engine
     const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa24a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });

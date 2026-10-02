@@ -88,4 +88,9 @@ Original project: no Battlefield assets, names or audio are used.
 - Lake ripple texture: derived from the "Water 0341" photo texture supplied with the project (source/licence: see the original download).
 - Trees: "Jabami Anime Tree" v1, v2, v3 and v5 by [JABAMI Production](https://sketchfab.com/JabamiProduction), [Sketchfab Standard licence](https://sketchfab.com/licenses). Merged into one file, trunks simplified, leaves recoloured in the shader.
 - Cockpit textures: Poly Haven ["Blue Metal Plate"](https://polyhaven.com/a/blue_metal_plate) and ["Metal Plate 02"](https://polyhaven.com/a/metal_plate_02), CC0 (resized to 2K, desaturated).
+- Particle textures: [Particle Pack](https://kenney.nl/assets/particle-pack) by Kenney (www.kenney.nl), CC0.
+- Sounds (Freesound):
+  - Cockpit engine: ["F-15 Eagle Cockpit Avionics"](https://freesound.org/people/SoundFX.studio/sounds/456269/) by [SoundFX.studio](https://soundfx.studio), [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Changes: level-flattened, loop-crossfaded. Non-commercial licence: replace it before any commercial use.
+  - Engine howl, afterburner roar and light-off: ["Afterburner sound"](https://freesound.org/people/StoneyJ/sounds/104883/) by StoneyJ, CC0.
+  - Cannon: ["M61A2 Minigun"](https://freesound.org/people/Seidhepriest/sounds/611449/) by Seidhepriest, CC0.
 - three.js r128 and its example scripts (EffectComposer, UnrealBloomPass, FXAA, GLTFLoader): MIT, three.js authors.

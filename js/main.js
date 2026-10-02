@@ -63,6 +63,10 @@
   if (opts.aiDiff) $('opt-aidiff').value = opts.aiDiff;
   if (opts.aiEcm) $('opt-aiecm').value = opts.aiEcm === true ? 'threat' : opts.aiEcm;
   if (opts.camStyle) $('opt-camstyle').value = opts.camStyle;
+  // Jet health (menu slider, saved). Default 50 = half the old 100 HP.
+  if (opts.jetHealth) $('opt-jethp').value = opts.jetHealth;
+  $('opt-jethp-v').textContent = $('opt-jethp').value;
+  $('opt-jethp').oninput = (e) => { $('opt-jethp-v').textContent = e.target.value; };
   cfg.camera.style = $('opt-camstyle').value;
 
   const ENEMY = ['Viper', 'Hex', 'Rook', 'Ghost', 'Talon', 'Nomad'], WING = ['Jester', 'Mako', 'Frost'];
@@ -75,8 +79,9 @@
     sim = new BF.Sim(cfg, seed);
     world = BF.buildWorld(scene, sim.terrain, cfg);
     effects = new BF.Effects(scene);
-    const o = { name: $('opt-name').value.trim() || 'Pilot', enemies: +$('opt-enemies').value, wing: +$('opt-wing').value, loadout: $('opt-loadout').value, aiMissiles: $('opt-aimsl').checked, aiEcm: $('opt-aiecm').value, camStyle: $('opt-camstyle').value, aiDiff: $('opt-aidiff').value };
+    const o = { name: $('opt-name').value.trim() || 'Pilot', enemies: +$('opt-enemies').value, wing: +$('opt-wing').value, loadout: $('opt-loadout').value, aiMissiles: $('opt-aimsl').checked, aiEcm: $('opt-aiecm').value, camStyle: $('opt-camstyle').value, aiDiff: $('opt-aidiff').value, jetHealth: +$('opt-jethp').value };
     BF.applyAiDifficulty(cfg, o.aiDiff);
+    cfg.jet.health = BF.clamp(o.jetHealth || 50, 10, 200);
     cfg.camera.style = o.camStyle;
     cfg.ai.useMissiles = o.aiMissiles; cfg.ai.ecmMode = o.aiEcm;
     // Merge, so menu-only options (e.g. the speed/altitude HUD toggle) aren't wiped
@@ -244,17 +249,18 @@
   const DIFF_LABEL = { veryEasy: 'very easy', easy: 'easy', medium: 'medium', hard: 'hard', extreme: 'extremely hard' };
   function lobbySettings() {
     return {
-      enemies: +$('lob-enemies').value, aiDiff: $('lob-aidiff').value,
+      enemies: +$('lob-enemies').value, aiDiff: $('lob-aidiff').value, jetHealth: +$('opt-jethp').value,
       aiMissiles: $('lob-aimsl').checked, aiEcm: $('lob-aiecm').value,
       tune: { flight: cfg.flight, weapons: cfg.weapons, countermeasures: cfg.countermeasures },
     };
   }
   function pushLobbySettings() { if (net.isHost) net.setSettings(lobbySettings()); }
   for (const id of ['lob-enemies', 'lob-aidiff', 'lob-aimsl', 'lob-aiecm']) $(id).onchange = pushLobbySettings;
+  $('opt-jethp').onchange = pushLobbySettings; // host's jet health applies to everyone
 
   function describeSettings(d) {
     d = d || {};
-    return `AI: ${d.enemies ?? 0} ${DIFF_LABEL[d.aiDiff] || 'medium'} enemies · missiles ${d.aiMissiles === false ? 'off' : 'on'} · ECM ${d.aiEcm || 'mixed'}`;
+    return `HP ${d.jetHealth || 50} · AI: ${d.enemies ?? 0} ${DIFF_LABEL[d.aiDiff] || 'medium'} enemies · missiles ${d.aiMissiles === false ? 'off' : 'on'} · ECM ${d.aiEcm || 'mixed'}`;
   }
   function renderLobby() {
     const room = net.room;
@@ -428,6 +434,7 @@
       if (d.tune.countermeasures) Object.assign(cfg.countermeasures, d.tune.countermeasures);
     }
     BF.applyAiDifficulty(cfg, d.aiDiff || 'medium');
+    cfg.jet.health = BF.clamp(d.jetHealth || 50, 10, 200); // host's setting, same for everyone
     cfg.ai.useMissiles = d.aiMissiles !== false;
     cfg.ai.ecmMode = d.aiEcm || 'off';
     sim = new BF.Sim(cfg, seed);
@@ -556,7 +563,7 @@
   function handleEvents() {
     for (const ev of sim.events) {
       effects.handle(ev, sim);
-      audio.event(ev, me, camera.position);
+      audio.event(ev, me, camera.position, sim);
       if (ev.type === 'hit' || (ev.type === 'explode' && ev.missile)) {
         if (ev.by === me.id && ev.type === 'hit') hud.hitMarkerT = 0.12;
         if (ev.jet === me.id) hud.damageFlash = Math.min(1, hud.damageFlash + 0.25);
@@ -736,7 +743,7 @@
       combiner = cockpit.combinerRect(innerWidth, innerHeight);
     }
     hud.draw(dt, { sim, me, cam: camera, camMode, cfg, effects, paused, combiner, showFlightHud });
-    audio.update(me, sim, cfg);
+    audio.update(me, sim, cfg, camMode);
     tuning.draw(dt);
   }
   // Idle backdrop behind the start screen
@@ -747,5 +754,5 @@
   requestAnimationFrame(frame);
 
   // Expose for debugging / future netcode
-  window.game = { get sim() { return sim; }, get me() { return me; }, get world() { return world; }, get camMode() { return camMode; }, set camMode(v) { camMode = v; }, input, camera, post, models, scene, hud };
+  window.game = { get sim() { return sim; }, get me() { return me; }, get world() { return world; }, get effects() { return effects; }, get camMode() { return camMode; }, set camMode(v) { camMode = v; }, audio, input, camera, post, models, scene, hud };
 })();
