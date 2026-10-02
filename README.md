@@ -1,9 +1,15 @@
-# Dogfight 313 — v0.2 prototype
+# Dogfight 313 — v0.3 prototype
 
 Standalone browser jet-combat prototype with BF3-style air mechanics: spring-back throttle,
 the 313 turn-speed sweet spot, heat-seekers with lock tones, flares or ECM jamming, radar,
 and keyboard/mouse/controller support. Single-player vs AI, or 2–4 player online dogfights
 through a WebSocket relay (room codes, join-in-progress, reconnect resume).
+
+v0.3 adds the visual and audio overhaul: F/A-18 model with texture-quality settings, photo
+sky, realistic terrain with Poly Haven ground textures and stable lakes, organic towns and
+skylines joined by roads, forests, cumulus clouds, a full F/A-18-style cockpit, Kenney
+particle effects, missile models with launch and smoke trails, and recorded engine,
+afterburner and M61 cannon sounds. A jet health slider sets match difficulty.
 
 ## Run it
 
