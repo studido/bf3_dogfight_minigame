@@ -271,11 +271,16 @@ window.BF = window.BF || {};
           const t = BF.clamp(toC.dot(seg) / len2, 0, 1);
           const dx = b.pos.x + seg.x * t - jp.x, dy = b.pos.y + seg.y * t - jp.y, dz = b.pos.z + seg.z * t - jp.z;
           if (dx * dx + dy * dy + dz * dz < R2) {
-            if (b.visualOnly) return false; // another client's tracer; its owner reports the real hit
+            // Impact point for effects: where the round passed, pulled in onto the airframe
+            // (within ~3 m of the jet's centre), so the puff appears on the jet, not in the air.
+            const hit = new V3(dx, dy, dz), hl = hit.length();
+            if (hl > 3) hit.multiplyScalar(3 / hl);
+            const hitPos = hit.add(jp), hitVel = j.vel.clone();
+            if (b.visualOnly) { this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: hitPos, vel: hitVel, kind: 'cannon', visualOnly: true }); return false; } // another client's tracer; its owner reports the real hit
             // Victim jet is owned by another client: report the hit, they apply the damage.
-            if (j.remote) { this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: j.pos.clone(), kind: 'cannon', remote: true }); return false; }
+            if (j.remote) { this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: hitPos, vel: hitVel, kind: 'cannon', remote: true }); return false; }
             this.damage(j, W.cannonDamage, b.owner, 'cannon');
-            this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: j.pos.clone(), kind: 'cannon' });
+            this.events.push({ type: 'hit', jet: j.id, by: b.owner, pos: hitPos, vel: hitVel, kind: 'cannon' });
             return false;
           }
         }

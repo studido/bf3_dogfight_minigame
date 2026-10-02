@@ -94,6 +94,24 @@ window.BF = window.BF || {};
     }));
   }
 
+  // Tracer streak texture: u across (glow profile), v along (0 tail .. 1 head)
+  let tracerTex = null;
+  function tracerTexture() {
+    if (tracerTex) return tracerTex;
+    const W = 32, H = 128, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'), im = g.createImageData(W, H), d = im.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const u = (x + 0.5) / W - 0.5, v = 1 - (y + 0.5) / H;          // canvas row 0 = head (flipY)
+      const core = Math.exp(-(u * u) / 0.004), halo = Math.exp(-(u * u) / 0.03);
+      const along = Math.pow(v, 1.6) * (1 - Math.max(0, v - 0.94) / 0.06 * 0.5);
+      const i = (y * W + x) * 4, a = Math.min(1, (core * 1.0 + halo * 0.55) * along);
+      d[i] = 255; d[i + 1] = 200 + 55 * core; d[i + 2] = 110 + 140 * core; d[i + 3] = a * 255;
+    }
+    g.putImageData(im, 0, 0);
+    tracerTex = new THREE.CanvasTexture(c);
+    return tracerTex;
+  }
+
   const C = (h) => new THREE.Color(h);
   const WHITE = C(0xf2f2f2), SMOKE = C(0xd9d9d9), DARK = C(0x2c2a28), FIRE = C(0xff8a2a), HOT = C(0xffe2a0),
     ECM = C(0xeee8f6), FLARE = C(0xffb870), VAPOR = C(0xffffff), DUST = C(0x9a8f78);
@@ -105,11 +123,20 @@ window.BF = window.BF || {};
       this.fire = new Particles(scene, 2500, true);
       this.ecmPuffs = []; // for lens-smear test
       // Tracers
-      this.maxTr = 600;
-      this.trPos = new Float32Array(this.maxTr * 6);
-      const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.BufferAttribute(this.trPos, 3).setUsage(THREE.DynamicDrawUsage));
+      // Tracers (v0.1.50): every round is a camera-facing glowing streak (white-hot core,
+      // amber edges, bright head fading to the tail), widened with distance so a burst
+      // stays readable from the cockpit at gun range. One dynamic mesh, one draw call.
+      this.maxTr = 1200;
+      this.trPos = new Float32Array(this.maxTr * 4 * 3); this.trUv = new Float32Array(this.maxTr * 4 * 2);
+      const tIdx = new Uint16Array(this.maxTr * 6);
+      for (let i = 0; i < this.maxTr; i++) { const o = i * 4; tIdx.set([o, o + 1, o + 2, o, o + 2, o + 3], i * 6); }
+      for (let i = 0; i < this.maxTr; i++) this.trUv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8);
+      const tg = new THREE.BufferGeometry();
+      tg.setAttribute('position', new THREE.BufferAttribute(this.trPos, 3).setUsage(THREE.DynamicDrawUsage));
+      tg.setAttribute('uv', new THREE.BufferAttribute(this.trUv, 2));
+      tg.setIndex(new THREE.BufferAttribute(tIdx, 1));
       this.trGeo = tg;
-      this.tracers = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+      this.tracers = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ map: tracerTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
       this.tracers.frustumCulled = false; scene.add(this.tracers);
       // Missile head glows
       this.missileVis = new Map(); this.fwdAxis = new V3(0, 0, -1);
@@ -167,10 +194,17 @@ window.BF = window.BF || {};
           this.smoke.emit({ pos: ev.pos.clone(), vel: new V3(0, 6, 0), life: 1.4, s0: 2, s1: 8, col: DUST, a: 0.65, tex: this.pick(T.smoke), rot: this.rnd() });
           if (this.r() < 0.5) this.smoke.emit({ pos: ev.pos.clone(), vel: new V3(0, 10, 0).add(this.jitter(6)), grav: 9.8, life: 0.7, s0: 3, s1: 4, col: C(0x5e5444), a: 0.9, tex: T.dirt, rot: this.rnd() });
           break;
-        case 'hit':
-          this.fire.emit({ pos: ev.pos.clone(), vel: null, life: 0.08, s0: 5, s1: 7, col: HOT, a: 1, tex: T.star, rot: this.rnd(), fadeIn: 0.01 });
-          for (let i = 0; i < 4; i++) this.fire.emit({ pos: ev.pos.clone().add(this.jitter(4)), vel: this.jitter(50), life: 0.3, s0: 1.4, s1: 0.8, col: HOT, a: 1, tex: T.spark, rot: this.rnd(), fadeIn: 0.01 });
+        case 'hit': {
+          // Cannon strike on a jet: bright flash, sparks and a small dark smoke puff that ride
+          // along with the target, scaled up with distance so hits read at gun range.
+          const j = sim.jets.find((x) => x.id === ev.jet), v = ev.vel ? ev.vel.clone() : j ? j.vel.clone() : new V3();
+          const k = this.camPos ? BF.clamp(ev.pos.distanceTo(this.camPos) / 220, 1, 3.5) : 1;
+          this.fire.emit({ pos: ev.pos.clone(), vel: v.clone(), life: 0.09, s0: 4 * k, s1: 6 * k, col: HOT, a: 1, tex: T.star, rot: this.rnd(), fadeIn: 0.01 });
+          this.fire.emit({ pos: ev.pos.clone(), vel: v.clone(), life: 0.14, s0: 3 * k, s1: 5 * k, col: FIRE, a: 0.8, tex: this.pick(T.fire), rot: this.rnd(), fadeIn: 0.01 });
+          for (let i = 0; i < 6; i++) this.fire.emit({ pos: ev.pos.clone(), vel: v.clone().add(this.jitter(70)), grav: 9.8, life: 0.35 + this.r() * 0.2, s0: 0.9 * k, s1: 0.5 * k, col: HOT, a: 1, tex: T.spark, rot: this.rnd(), fadeIn: 0.01 });
+          this.smoke.emit({ pos: ev.pos.clone(), vel: v.clone().multiplyScalar(0.85).add(this.jitter(4)), drag: 1.5, life: 0.9 + this.r() * 0.4, s0: 1.5 * k, s1: 5 * k, col: C(0x4a4642), a: 0.7, tex: this.pick(T.smoke), rot: this.rnd(), spin: (this.r() - 0.5) * 2 });
           break;
+        }
         case 'ecmPuff': {
           const cfg = sim.cfg.countermeasures;
           for (let i = 0; i < 3; i++) {
@@ -258,15 +292,25 @@ window.BF = window.BF || {};
         return d.t > 0 && d.pos.y > sim.terrain.obstacleHeight(d.pos.x, d.pos.z);
       });
 
-      // Tracers (every 2nd round visible, like tracer belts). Streak grows with bullet age
-      // so it emerges from the muzzle instead of instantly spanning back past the jet.
+      // Tracers: every round, a straight streak behind the bullet (grows from the muzzle)
       let n = 0;
-      for (let i = 0; i < sim.bullets.length && n < this.maxTr; i += 2) {
-        const b = sim.bullets[i];
-        const tt = Math.min(0.025, b.age);
-        this.trPos.set([b.pos.x, b.pos.y, b.pos.z, b.pos.x - b.vel.x * tt, b.pos.y - b.vel.y * tt, b.pos.z - b.vel.z * tt], n * 6); n++;
+      const cp = camera.position, dirV = new V3(), side = new V3(), toCam = new V3();
+      for (let i = 0; i < sim.bullets.length && n < this.maxTr; i++) {
+        const b = sim.bullets[i], sp = b.vel.length(); if (sp < 1) continue;
+        dirV.copy(b.vel).multiplyScalar(1 / sp);
+        const len = Math.min(sp * 0.032, sp * b.age + 2);
+        toCam.subVectors(cp, b.pos); const dist = toCam.length();
+        side.crossVectors(dirV, toCam); if (side.lengthSq() < 1e-6) side.set(0, 1, 0); side.normalize();
+        const w = Math.max(0.28, dist * 0.0016);                       // constant-ish screen width far away
+        const hx = b.pos.x, hy = b.pos.y, hz = b.pos.z, tx = hx - dirV.x * len, ty = hy - dirV.y * len, tz = hz - dirV.z * len;
+        const sx = side.x * w, sy = side.y * w, sz = side.z * w, o = n * 12;
+        this.trPos[o] = tx - sx; this.trPos[o + 1] = ty - sy; this.trPos[o + 2] = tz - sz;
+        this.trPos[o + 3] = tx + sx; this.trPos[o + 4] = ty + sy; this.trPos[o + 5] = tz + sz;
+        this.trPos[o + 6] = hx + sx; this.trPos[o + 7] = hy + sy; this.trPos[o + 8] = hz + sz;
+        this.trPos[o + 9] = hx - sx; this.trPos[o + 10] = hy - sy; this.trPos[o + 11] = hz - sz;
+        n++;
       }
-      this.trGeo.setDrawRange(0, n * 2); this.trGeo.attributes.position.needsUpdate = true;
+      this.trGeo.setDrawRange(0, n * 6); this.trGeo.attributes.position.needsUpdate = true;
 
       this.smoke.update(dt, viewportH, camera.fov); this.fire.update(dt, viewportH, camera.fov);
 

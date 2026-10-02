@@ -4,7 +4,7 @@
 window.BF = window.BF || {};
 // Build number: shown on the start screen. LaunchGame.html loads every script with ?v=<build> so the
 // browser can't keep running stale cached files after an update (bump both together).
-BF.BUILD = '0.1.49';
+BF.BUILD = '0.1.54';
 
 BF.DEFAULT_CONFIG = {
   flight: {
@@ -57,7 +57,7 @@ BF.DEFAULT_CONFIG = {
   weapons: {
     cannonRps: 18,
     cannonSpeed: 1300,       // m/s (scaled with groundSpeedScale)
-    cannonSpread: 0.35,      // deg
+    cannonSpread: 0,         // deg (v0.1.54: dead straight; was 0.35)
     cannonDamage: 2.2,
     cannonRange: 1100,       // m
     cannonHeat: 0.033,       // heat per round; overheats at 1 (~3.9 s continuous fire, was ~1.6 s)
@@ -100,7 +100,7 @@ BF.DEFAULT_CONFIG = {
     flareChance: 0.8,
     fireCone: 3.5,           // deg, cannon fires when target within
     skill: 0.8,              // 0..1 speed discipline around 313
-    difficulty: 'medium',    // menu: veryEasy / easy / medium / hard (sets the AI values here, see ai.js)
+    difficulty: 'medium',    // menu: passive / veryEasy / easy / medium / hard (sets the AI values here, see ai.js)
     useMissiles: true,       // menu toggle: AI guns-only for testing
     ecmMode: 'off',          // menu: 'off' (mixed flares/ECM, react to missiles), 'threat' (all ECM, jam when
                              // being locked), 'spam' (all ECM, jam whenever ready, 6 s cooldown: testing)
@@ -145,7 +145,7 @@ BF.cloneConfig = (c) => JSON.parse(JSON.stringify(c));
 BF.CONFIG = BF.cloneConfig(BF.DEFAULT_CONFIG);
 // Bump when defaults change meaningfully: old saved tuning is discarded so
 // everyone picks up the new defaults (export a preset first to keep yours).
-BF.CONFIG_VERSION = 16;
+BF.CONFIG_VERSION = 17;
 // Keys whose defaults changed in a version: dropped from older saves, everything else kept.
 BF.CONFIG_MIGRATIONS = {
   3: [['flight', 'boostRate']],
@@ -162,6 +162,7 @@ BF.CONFIG_MIGRATIONS = {
   14: [['flight', 'boostRate'], ['flight', 'boostRateClimb']], // AB -25%, smooth brake curve
   15: [['camera', 'radarRange']],
   16: [['flight', 'rollRate']],
+  17: [['weapons', 'cannonSpread']], // straight gun stream
 };
 try {
   const saved = JSON.parse(localStorage.getItem('bf3dog.config') || 'null');

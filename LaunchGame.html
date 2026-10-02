@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dogfight 313 — v0.3 prototype</title>
   <link rel="icon" type="image/png" href="assets/icon/jet_64.png">
-  <link rel="stylesheet" href="css/style.css?v=0.1.49">
+  <link rel="stylesheet" href="css/style.css?v=0.1.54">
 </head>
 <body>
   <canvas id="gl"></canvas>
@@ -20,7 +20,7 @@
           <label>Enemies <select id="opt-enemies"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></label>
           <label>Wingmen <select id="opt-wing"><option>0</option><option selected>1</option><option>2</option></select></label>
           <label>Countermeasure <select id="opt-loadout"><option value="flares">Flares</option><option value="ecm">ECM jammer</option></select></label>
-<label>AI difficulty <select id="opt-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
+<label>AI difficulty <select id="opt-aidiff"><option value="passive">Target practice (no fight-back)</option><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="opt-aimsl" type="checkbox" checked> AI uses missiles</label>
           <label>AI ECM jammer <select id="opt-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
           <label>Texture quality <select id="opt-texq"><option value="low">Low (1K)</option><option value="medium" selected>Medium (2K)</option><option value="high">High (4K)</option></select></label>
@@ -62,7 +62,7 @@
           <button id="p-t1">TEAM 2</button>
         </div>
         <div class="grid">
-<label>AI difficulty <select id="p-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
+<label>AI difficulty <select id="p-aidiff"><option value="passive">Target practice (no fight-back)</option><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="p-aimsl" type="checkbox"> AI uses missiles</label>
           <label>AI ECM jammer <select id="p-aiecm"><option value="off">Normal (mixed flares / ECM)</option><option value="threat">ECM, jam when locked</option><option value="spam">ECM, jam constantly (testing)</option></select></label>
           <label>Texture quality <select id="p-texq"><option value="low">Low (1K)</option><option value="medium" selected>Medium (2K)</option><option value="high">High (4K)</option></select><small id="p-texq-active"></small></label>
@@ -94,7 +94,7 @@
         </div>
         <div id="lobby-hostopts" class="grid" style="display:none">
           <label>AI enemies <select id="lob-enemies"><option>0</option><option>1</option><option>2</option><option selected>3</option><option>4</option></select></label>
-          <label>AI difficulty <select id="lob-aidiff"><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
+          <label>AI difficulty <select id="lob-aidiff"><option value="passive">Target practice (no fight-back)</option><option value="veryEasy">Very easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="extreme">Extremely hard</option></select></label>
           <label><input id="lob-aimsl" type="checkbox" checked> AI uses missiles</label>
           <label>AI ECM jammer <select id="lob-aiecm"><option value="off">Normal (mixed)</option><option value="threat">ECM when locked</option><option value="spam">ECM always</option></select></label>
         </div>
@@ -110,42 +110,42 @@
   </div>
 
   <!-- Three.js r128 (classic build so the game runs straight from disk) -->
-  <script src="js/vendor/three.min.js?v=0.1.49"></script> <!-- three.js r128, bundled (offline + desktop app) -->
+  <script src="js/vendor/three.min.js?v=0.1.54"></script> <!-- three.js r128, bundled (offline + desktop app) -->
   <!-- r128 post-processing example scripts (MIT, three.js project), vendored for offline play.
        ORDER MATTERS: EffectComposer.js defines THREE.Pass/FullScreenQuad used by the pass files. -->
-  <script src="js/vendor/CopyShader.js?v=0.1.49"></script>
-  <script src="js/vendor/LuminosityHighPassShader.js?v=0.1.49"></script>
-  <script src="js/vendor/FXAAShader.js?v=0.1.49"></script>
-  <script src="js/vendor/EffectComposer.js?v=0.1.49"></script>
-  <script src="js/vendor/MaskPass.js?v=0.1.49"></script>
-  <script src="js/vendor/ShaderPass.js?v=0.1.49"></script>
-  <script src="js/vendor/RenderPass.js?v=0.1.49"></script>
-  <script src="js/vendor/UnrealBloomPass.js?v=0.1.49"></script>
-  <script src="js/vendor/GLTFLoader.js?v=0.1.49"></script>
-  <script src="assets/sky/sky.jpg.js?v=0.1.49"></script>
-  <script src="js/config.js?v=0.1.49"></script>
-  <script src="js/util.js?v=0.1.49"></script>
-  <script src="js/input.js?v=0.1.49"></script>
-  <script src="js/city-data.js?v=0.1.49"></script>
-  <script src="js/terrain.js?v=0.1.49"></script>
-  <script src="js/sim.js?v=0.1.49"></script>
-  <script src="js/ai.js?v=0.1.49"></script>
-  <script src="js/city.js?v=0.1.49"></script>
-  <script src="js/terrain-render.js?v=0.1.49"></script>
-  <script src="js/roads.js?v=0.1.49"></script>
-  <script src="js/trees.js?v=0.1.49"></script>
-  <script src="js/world.js?v=0.1.49"></script>
-  <script src="js/jet-model.js?v=0.1.49"></script>
-  <script src="js/cockpit.js?v=0.1.49"></script>
-  <script src="js/rollcam.js?v=0.1.49"></script>
-  <script src="assets/particles.js?v=0.1.49"></script>
-  <script src="js/effects.js?v=0.1.49"></script>
-  <script src="js/hud.js?v=0.1.49"></script>
-  <script src="assets/sounds/sounds.js?v=0.1.49"></script>
-  <script src="js/audio.js?v=0.1.49"></script>
-  <script src="js/tuning-panel.js?v=0.1.49"></script>
-  <script src="js/net.js?v=0.1.49"></script>
-  <script src="js/post.js?v=0.1.49"></script>
-  <script src="js/main.js?v=0.1.49"></script>
+  <script src="js/vendor/CopyShader.js?v=0.1.54"></script>
+  <script src="js/vendor/LuminosityHighPassShader.js?v=0.1.54"></script>
+  <script src="js/vendor/FXAAShader.js?v=0.1.54"></script>
+  <script src="js/vendor/EffectComposer.js?v=0.1.54"></script>
+  <script src="js/vendor/MaskPass.js?v=0.1.54"></script>
+  <script src="js/vendor/ShaderPass.js?v=0.1.54"></script>
+  <script src="js/vendor/RenderPass.js?v=0.1.54"></script>
+  <script src="js/vendor/UnrealBloomPass.js?v=0.1.54"></script>
+  <script src="js/vendor/GLTFLoader.js?v=0.1.54"></script>
+  <script src="assets/sky/sky.jpg.js?v=0.1.54"></script>
+  <script src="js/config.js?v=0.1.54"></script>
+  <script src="js/util.js?v=0.1.54"></script>
+  <script src="js/input.js?v=0.1.54"></script>
+  <script src="js/city-data.js?v=0.1.54"></script>
+  <script src="js/terrain.js?v=0.1.54"></script>
+  <script src="js/sim.js?v=0.1.54"></script>
+  <script src="js/ai.js?v=0.1.54"></script>
+  <script src="js/city.js?v=0.1.54"></script>
+  <script src="js/terrain-render.js?v=0.1.54"></script>
+  <script src="js/roads.js?v=0.1.54"></script>
+  <script src="js/trees.js?v=0.1.54"></script>
+  <script src="js/world.js?v=0.1.54"></script>
+  <script src="js/jet-model.js?v=0.1.54"></script>
+  <script src="js/cockpit.js?v=0.1.54"></script>
+  <script src="js/rollcam.js?v=0.1.54"></script>
+  <script src="assets/particles.js?v=0.1.54"></script>
+  <script src="js/effects.js?v=0.1.54"></script>
+  <script src="js/hud.js?v=0.1.54"></script>
+  <script src="assets/sounds/sounds.js?v=0.1.54"></script>
+  <script src="js/audio.js?v=0.1.54"></script>
+  <script src="js/tuning-panel.js?v=0.1.54"></script>
+  <script src="js/net.js?v=0.1.54"></script>
+  <script src="js/post.js?v=0.1.54"></script>
+  <script src="js/main.js?v=0.1.54"></script>
 </body>
 </html>

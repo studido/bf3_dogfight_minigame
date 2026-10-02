@@ -806,6 +806,74 @@ desync tuning — friends' rule: don't).
   exe as a 14-day artifact. `electronLanguages: ["en-US"]` trims the Chromium locales.
 
 
+## v0.1.50: straight gun stream, glowing tracers, visible hits
+- **Straight stream:** `cannonSpread` is now 0 (was 0.35 deg), so rounds fly dead
+  straight along the nose (plus the jet's own velocity). Config migration 17 drops old
+  saved spread values. AI furball cannon hits are unchanged or slightly up, since the
+  7 m hit radius is still generous.
+- **Tracers:** every round is drawn (was every 2nd) as a camera-facing glowing streak
+  instead of a 1 px line: white-hot core, amber halo, bright head fading to the tail,
+  about 0.032 s of flight long, and growing out of the muzzle. Width scales with distance
+  (at least 0.28 m, 0.16 % of range) so a burst stays readable from the cockpit at gun
+  range. It's one dynamic indexed mesh, up to 1200 streaks, one draw call.
+- **Hits on jets:** the sim now reports the impact point (where the round passed, pulled
+  to within 3 m of the jet's centre) and the target's velocity. The effect is a star
+  flash, a fire flash, 6 falling sparks and a small dark smoke puff, all riding along
+  with the target and scaled up with distance (x1-3.5) so hits read at range.
+  - Other clients' rounds (visual-only) now show the same impact effect locally. They
+    skip the HUD and audio, so there's no double damage flash.
+
+## v0.1.51: "Target practice" AI level
+- New first entry in the three AI difficulty menus (start screen, pause, lobby):
+  **Target practice (no fight-back)**, `BF.AI_LEVELS.passive`. The AI never fires and
+  never uses flares or ECM. It cruises between random waypoints at 600-1200 m and a lazy
+  ~340.
+  - When an enemy is within 1.5 km in its rear hemisphere, it picks a side and holds a
+    wide turn: aim point at most 25 deg off the nose, pull capped at 0.3, bank capped at
+    35 deg, no climbing away. That's about 3 deg/s, so it can't out-turn anyone.
+  - Ground and rooftop avoidance still apply, and it turns back properly near the
+    combat-area edge, so it doesn't die to terrain or the boundary.
+  - Headless check: 180 s with a chaser parked 500 m behind it gave 0 shots and 0 deaths.
+  - It applies to all AI, wingmen included (they also won't shoot).
+- Fix: `applyAiDifficulty` now clears every level-specific key before applying a level.
+  Before, switching from Hard to Medium left Hard-only flags (bfm, burst, ...) active.
+
+## v0.1.52: easier Easy, harder Extremely hard
+- **Medium and Hard are unchanged**: identical furball numbers before and after.
+- **Easy:** same behaviours, softer hands. Stick authority is capped at 60 % and its inputs
+  lag ~0.35 s behind what it wants (ground pull-ups stay crisp). Aim error 2.6 -> 3.0 deg,
+  reaction 0.8 -> 1.0 s.
+  - 180 s furball: cannon hits 16.7/min -> 3.0/min, still engaged 78 % of the time.
+- **Extremely hard:**
+  - **Hunts the humans:** human players count as 0.35x the distance when picking targets.
+  - **Never lets up:** afterburner to close beyond 1.2 km when roughly pointed at the
+    target, missile shot 0.12-0.32 s after lock (was 0.4-1.0), guns open from 1000 m
+    (was 900) with a 4.5 deg cone.
+  - **Sharper tracking:** fine-tracking gain 9 -> 13, inside 6 deg.
+  - **Guns defence:** with an enemy within 1 km behind and itself inside that enemy's
+    9 deg gunsight, it jinks hard out of plane and reverses every ~1 s.
+  - Aim error 1.0 -> 0.7 deg, reaction 0.22 -> 0.18 s.
+  - 180 s furball: cannon hits 21.3/min -> 47.3/min, speed held closer to 313
+    (avg error 16.8 -> 10.9).
+
+## v0.1.53: no hitch on the first switch to cockpit view
+- Cause: the first cockpit frame built the AMPCD moving map (~800k terrain samples, about
+  0.5-1 s), compiled the cockpit's shaders and uploaded its textures, all in one frame.
+- `cockpit.prewarm(renderer, sim, camera)` runs at match start (single player and
+  multiplayer). It builds the map in the background, 24 rows per timer slice (the display
+  shows "MAP ALIGN" if opened before it's done), and renders the cockpit once into a 64 px
+  off-screen target so shaders compile and textures upload up front. It runs again when
+  the metal textures finish loading, so their upload doesn't land on the first view either.
+
+## v0.1.54: steady reticle, no "GUN" label
+- The chase-view aim reticle was projected from the raw sim pose (`me.pos`/`me.quat`,
+  60 Hz fixed steps), while the camera and jet model use the interpolated pose. The two
+  disagreed by a fraction of a step from frame to frame, so the reticle jittered, most
+  visibly against the ground. It now uses `dispPos`/`dispQuat`. The cockpit HUD's pitch
+  ladder and heading get the same fix.
+- The cannon reticle has no text label any more; it still turns red when the gun
+  overheats. Heat-seekers keep their "MSL xN" count.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

@@ -104,7 +104,10 @@ window.BF = window.BF || {};
       }
       else if (me.alive) {
         // Aim reticle: where the nose points, far ahead
-        const aim = this.project(tmp.copy(me.pos).addScaledVector(BF.forwardOf(me.quat, new V3()), 600), cam);
+        // Use the interpolated on-screen transform (dispPos/dispQuat), not the raw 60 Hz sim
+        // state: the camera and the jet model are drawn from the interpolated pose, so the raw
+        // state stepped against them and the reticle jittered (most visible against the ground)
+        const aim = this.project(tmp.copy(me.dispPos || me.pos).addScaledVector(BF.forwardOf(me.dispQuat || me.quat, new V3()), 600), cam);
         if (aim) {
           g.strokeStyle = me.overheated ? RED : CY; g.lineWidth = 1.5;
           g.beginPath(); g.arc(aim.x, aim.y, 14, 0, 7); g.stroke();
@@ -114,8 +117,9 @@ window.BF = window.BF || {};
             for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { g.moveTo(aim.x + sx * 6, aim.y + sy * 6); g.lineTo(aim.x + sx * 12, aim.y + sy * 12); }
             g.stroke(); this.hitMarkerT -= dt;
           }
-          const wl = me.weapon === 'missile' ? `MSL ×${me.missiles}` : me.overheated ? 'GUN HOT' : 'GUN';
-          this.text(wl, aim.x + 30, aim.y + 14, 11, me.weapon === 'missile' && me.missiles === 0 ? ORG : 'rgba(127,227,255,0.85)');
+          // Label only for heat-seekers (missile count); the cannon reticle is unlabelled
+          // (it turns red when the gun overheats)
+          if (me.weapon === 'missile') this.text(`MSL ×${me.missiles}`, aim.x + 30, aim.y + 14, 11, me.missiles === 0 ? ORG : 'rgba(127,227,255,0.85)');
         }
         if (S.showFlightHud !== false) this.flightBlock(me, cfg, sim);
         this.warnings(me, sim, cfg);
@@ -321,7 +325,8 @@ window.BF = window.BF || {};
       const gw = R.x1 - R.x0, gh = R.y1 - R.y0, hw = gw / 2, u = gw / 300;
       const fs = (n) => Math.max(8, Math.round(n * u));
       const f = (H / 2) / Math.tan(cam.fov * BF.DEG / 2); // px per unit tan
-      const fwd = BF.forwardOf(me.quat, new V3()), up = BF.upOf(me.quat, new V3()), right = BF.rightOf(me.quat, new V3());
+      const q = me.dispQuat || me.quat; // interpolated pose, same as the camera (no step jitter)
+      const fwd = BF.forwardOf(q, new V3()), up = BF.upOf(q, new V3()), right = BF.rightOf(q, new V3());
       const pitch = Math.asin(BF.clamp(fwd.y, -1, 1)) / BF.DEG;
       const roll = Math.atan2(-right.y, up.y);
       const hdg = ((Math.atan2(fwd.x, -fwd.z) / BF.DEG) + 360) % 360;

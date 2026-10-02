@@ -399,11 +399,13 @@ BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
         set(this.decoMat, t, { ns: 0.6, rough: 1 });
         // panel colour: redraw the decal canvas over the photo once it has decoded
         this.drawPanelDecals(this.deco, t.diff.image); this.decoMat.map.needsUpdate = true;
+        if (this.renderer) this.prewarm(this.renderer); // upload the new maps now, not on first view
       });
       load('frame').then((t) => {
         if (!t) return;
         set(M.frame, t, { map: true, color: 0xc4bdb4, rough: 1 });
         t.diff.repeat.set(3, 3); t.nor.repeat.set(3, 3); t.rough.repeat.set(3, 3);
+        if (this.renderer) this.prewarm(this.renderer);
       });
     }
 
@@ -427,10 +429,16 @@ BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
 
     // Colour relief map of the whole world (once per terrain): greens to yellow with height,
     // lakes, forests, roads and towns, like the reference AMPCD moving map.
-    buildMap(terrain) {
+    // Built in slices of rows across many frames (it's ~800k terrain samples, which used to
+    // be the big hitch the first time the cockpit opened); onDone gets { c, span, N }.
+    buildMap(terrain, onDone) {
       const N = 512, span = terrain.half * 2 * 1.15, c = canvas(N, N), g = c.getContext('2d'), im = g.createImageData(N, N);
       const lowC = [44, 132, 44], midC = [128, 186, 48], hiC = [222, 214, 60];
-      for (let k = 0; k < N; k++) for (let i = 0; i < N; i++) {
+      let k0 = 0;
+      const slice = () => {
+      if (this.mapJob !== job) return; // superseded by a newer terrain
+      const k1 = Math.min(N, k0 + 24);
+      for (let k = k0; k < k1; k++) for (let i = 0; i < N; i++) {
         const x = (i / N - 0.5) * span, z = (k / N - 0.5) * span, h = terrain.height(x, z), o = (k * N + i) * 4;
         let col;
         if (h < terrain.water) col = [38, 92, 205];
@@ -440,6 +448,8 @@ BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
         const e = span / N, sh = BF.clamp(1 + (terrain.height(x - e, z - e) - h) * 0.012, 0.7, 1.25);
         im.data[o] = col[0] * sh; im.data[o + 1] = col[1] * sh; im.data[o + 2] = col[2] * sh; im.data[o + 3] = 255;
       }
+      k0 = k1;
+      if (k0 < N) { setTimeout(slice, 0); return; }
       g.putImageData(im, 0, 0);
       const P = (x, z) => [(x / span + 0.5) * N, (z / span + 0.5) * N];
       g.lineCap = 'round';
@@ -453,7 +463,28 @@ BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
         g.fill();
         const [px, py] = P(C.x, C.z); g.fillStyle = '#d23aa0'; g.beginPath(); g.moveTo(px, py - 5); g.lineTo(px + 5, py); g.lineTo(px, py + 5); g.lineTo(px - 5, py); g.fill();
       }
-      return { c, span, N };
+      onDone({ c, span, N });
+      };
+      const job = this.mapJob = {};
+      setTimeout(slice, 0);
+    }
+
+    // Call at match start: builds the moving map in the background and renders the cockpit
+    // once off-screen, so shaders compile and textures upload before the first switch to
+    // cockpit view (no hitch then). Re-run after the metal textures arrive.
+    prewarm(renderer, sim, camera) {
+      this.renderer = renderer;
+      if (sim && (!this.mapFor || this.mapFor.terrain !== sim.terrain) && (!this.mapJob || this.mapJob.terrain !== sim.terrain)) {
+        this.mapFor = null;
+        this.buildMap(sim.terrain, (m) => { this.mapFor = { terrain: sim.terrain, ...m }; });
+        this.mapJob.terrain = sim.terrain;
+      }
+      if (camera) this.sync(camera, new V3(0.3, 0.8, -0.5).normalize());
+      try {
+        const rt = this.warmRT || (this.warmRT = new THREE.WebGLRenderTarget(64, 64));
+        const prev = renderer.getRenderTarget();
+        renderer.setRenderTarget(rt); renderer.render(this.scene, this.cam); renderer.setRenderTarget(prev);
+      } catch (e) { /* best effort */ }
     }
 
     // Keep projection (incl. the lens shift) in sync with the world camera, aim the sun.
@@ -562,7 +593,11 @@ BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
 
       // AMPCD moving map, heading up, 3 km radius
       { const s = this.screens.map, g = s.g, W = s.w, H = s.h;
-        if (!this.mapFor || this.mapFor.terrain !== sim.terrain) this.mapFor = { terrain: sim.terrain, ...this.buildMap(sim.terrain) };
+        if (!this.mapFor || this.mapFor.terrain !== sim.terrain) {
+          if (!this.mapJob || this.mapJob.terrain !== sim.terrain) { this.buildMap(sim.terrain, (m) => { this.mapFor = { terrain: sim.terrain, ...m }; }); this.mapJob.terrain = sim.terrain; }
+          g.fillStyle = '#0a1a0a'; g.fillRect(0, 0, W, H); g.fillStyle = '#7dff8a'; g.font = mono(18); g.textAlign = 'center'; g.fillText('MAP ALIGN', W / 2, H / 2);
+          s.t.needsUpdate = true;
+        } else {
         const mp = this.mapFor, cx = W / 2, cy = H * 0.62, pxPerM = (W * 0.5) / 3000;
         g.fillStyle = '#0a1a0a'; g.fillRect(0, 0, W, H);
         g.save(); g.translate(cx, cy); g.rotate(-hdg); g.scale(pxPerM * mp.span / mp.N, pxPerM * mp.span / mp.N);
@@ -579,7 +614,7 @@ BF.COCKPIT_BORESIGHT = (0.173 + 0.42) / 2 + 0.06;
         g.fillStyle = 'rgba(0,0,0,0.65)'; g.fillRect(W - 112, H - 70, 104, 62); g.fillStyle = '#ffd23c'; g.font = mono(15); g.textAlign = 'center';
         g.fillText('TERRAIN', W - 60, H - 56); g.fillStyle = '#ffffff'; g.fillText(`${Math.round(me.altitude)}M`, W - 60, H - 36); g.fillText('3KM', W - 60, H - 18);
         g.textAlign = 'left'; g.fillStyle = '#ffffff'; g.fillText(String(Math.round(((hdg / BF.DEG) + 360) % 360)).padStart(3, '0'), cx - 16, 16);
-        s.t.needsUpdate = true; }
+        s.t.needsUpdate = true; } }
 
       // Standby attitude indicator
       { const s = this.screens.adi, g = s.g, W = s.w, c = W / 2;

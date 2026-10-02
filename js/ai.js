@@ -16,14 +16,25 @@ window.BF = window.BF || {};
   //               anticipates climbs/dives (hard)
   //   defensive:  breaks when someone behind is getting a lock, before any missile is fired
   BF.AI_LEVELS = {
+    // Target practice: never shoots or pops countermeasures, cruises between waypoints, and
+    // when chased only makes wide, gentle turns (bank <= 35 deg, light pull). See updatePassive().
+    passive:  { aimError: 0, fireCone: 0, skill: 0.5, reactionTime: 9, flareChance: 0, evadeRange: 0, flareRange: 0, breakTurn: 0, sloppy: 0, speedMode: 'bang', defensive: false, passive: true },
     veryEasy: { aimError: 4.0, fireCone: 2.5, skill: 0.2, reactionTime: 1.3, flareChance: 0.35, evadeRange: 450, flareRange: 350, breakTurn: 0, sloppy: 0.5, speedMode: 'bang', defensive: false },
-    easy:     { aimError: 2.6, fireCone: 3.0, skill: 0.5, reactionTime: 0.8, flareChance: 0.6, evadeRange: 750, flareRange: 550, breakTurn: 0.6, sloppy: 0.2, speedMode: 'bang', defensive: false },
+    // easy (v0.1.52): same behaviours, but softer hands: stick capped at 60 % and the
+    // control inputs lag ~0.35 s behind what it wants, so turns are wider and later
+    easy:     { aimError: 3.0, fireCone: 3.0, skill: 0.5, reactionTime: 1.0, flareChance: 0.6, evadeRange: 750, flareRange: 550, breakTurn: 0.6, sloppy: 0.2, speedMode: 'bang', defensive: false, stickMax: 0.6, ctlLag: 0.35 },
     medium:   { aimError: 1.6, fireCone: 3.5, skill: 0.8, reactionTime: 0.45, flareChance: 0.8, evadeRange: 1000, flareRange: 650, breakTurn: 1, sloppy: 0, speedMode: 'bang', defensive: false },
     hard:     { aimError: 1.3, fireCone: 3.7, skill: 0.9, reactionTime: 0.32, flareChance: 0.88, evadeRange: 1150, flareRange: 650, breakTurn: 1, speedMode: 'pd', pdNoise: 14, pdDeadband: 3, pdLead: 0.5, sloppy: 0.28, smartBreak: true, defensive: false, bfm: true, burst: true, lagK: 0.9, maxLag: 1.0, overDist: 230, overClosure: 22 },
-    extreme:  { aimError: 1.0, fireCone: 4.0, skill: 0.95, reactionTime: 0.22, flareChance: 0.96, evadeRange: 1400, flareRange: 700, breakTurn: 1, sloppy: 0, speedMode: 'pd', pdNoise: 6, pdDeadband: 1.5, pdLead: 0.8, smartBreak: true, defensive: true, bfm: true, burst: true, lagK: 1.2, maxLag: 1.4, overDist: 280, overClosure: 15 },
+    // extreme (v0.1.52): hunts the human players first and never lets up (afterburner to
+    // close, quicker missile shots, earlier gun), sharper tracking, and a guns-defence
+    // jink with reversals when someone has it in their gunsight
+    extreme:  { aimError: 0.7, fireCone: 4.5, skill: 0.95, reactionTime: 0.18, flareChance: 0.97, evadeRange: 1400, flareRange: 700, breakTurn: 1, sloppy: 0, speedMode: 'pd', pdNoise: 6, pdDeadband: 1.5, pdLead: 0.8, smartBreak: true, defensive: true, bfm: true, burst: true, lagK: 1.2, maxLag: 1.4, overDist: 280, overClosure: 15, huntPlayer: true, aggressive: true, sharpTrack: true, gunsDefense: true },
   };
   BF.applyAiDifficulty = (cfg, level) => {
     const p = BF.AI_LEVELS[level] || BF.AI_LEVELS.medium;
+    // Clear every level-specific key first, so options from a previous level (e.g. bfm,
+    // passive) don't leak into one that doesn't set them
+    for (const L of Object.values(BF.AI_LEVELS)) for (const k of Object.keys(L)) delete cfg.ai[k];
     Object.assign(cfg.ai, p, { difficulty: BF.AI_LEVELS[level] ? level : 'medium' });
   };
 
@@ -44,6 +55,7 @@ window.BF = window.BF || {};
         if (this.sim.t < o.ecmUntil && d > 1000) continue; // jamming: off their radar beyond visual range
         if (o.lock.targetId === j.id) d *= 0.6; // go after whoever is on us
         if (o.id === this.targetId) d *= 0.8;   // stickiness
+        if (this.sim.cfg.ai.huntPlayer && !o.isAI) d *= 0.35; // very hard: goes for the humans
         if (d < bestD) { bestD = d; best = o; }
       }
       this.targetId = best ? best.id : null;
@@ -53,6 +65,7 @@ window.BF = window.BF || {};
       const j = this.jet, sim = this.sim, A = sim.cfg.ai, c = BF.emptyControls();
       j.ctl = c;
       if (!j.alive) return;
+      if (A.passive) { this.updatePassive(dt, c); return; }
       this.retargetT -= dt;
       if (this.retargetT <= 0) { this.pickTarget(); this.retargetT = 2.5 + sim.rand() * 1.5; }
       let tgt = this.targetId != null ? sim.jet(this.targetId) : null;
@@ -140,6 +153,22 @@ window.BF = window.BF || {};
         }
       }
 
+      // Very hard: guns defence. Someone within 1 km behind with us in their gunsight:
+      // hard out-of-plane jink with a reversal every ~1 s (spoils the tracking solution,
+      // and the reversal often turns the tables)
+      if (A.gunsDefense && mode !== 'evade') {
+        for (const o of sim.jets) {
+          if (!o.alive || o.team === j.team) continue;
+          tmp.subVectors(j.pos, o.pos); const d = tmp.length();
+          if (d > 1000 || tmp.dot(fwd) < 0) continue;                       // must be behind us
+          if (BF.forwardOf(o.quat, aimV).dot(tmp.normalize()) < Math.cos(9 * BF.DEG)) continue; // not in their sight
+          this.gdT = (this.gdT ?? 0) - dt;
+          if (this.gdT <= 0) { this.gdDir = -(this.gdDir || 1); this.gdT = 0.8 + sim.rand() * 0.5; }
+          desired.copy(BF.rightOf(j.quat, rgtV)).multiplyScalar(this.gdDir).addScaledVector(BF.upOf(j.quat, closV), 0.6).addScaledVector(fwd, 0.3).normalize();
+          mode = 'evade'; break;
+        }
+      }
+
       // ECM mode: jam proactively as soon as someone is getting a lock (ECM breaks
       // locks and blocks new ones), not just when a missile is already close.
       const ecmMode = A.ecmMode === true ? 'threat' : A.ecmMode || 'off';
@@ -185,6 +214,16 @@ window.BF = window.BF || {};
       }
 
       this.steer(c, desired, mode === 'pullup');
+      // Easy: softer hands. Stick authority capped and inputs lag behind (not when pulling
+      // up from the ground; that stays crisp so it doesn't fly into hills)
+      if (mode !== 'pullup' && (A.stickMax || A.ctlLag)) {
+        const m = A.stickMax || 1;
+        c.pitch = BF.clamp(c.pitch, -m, m); c.roll = BF.clamp(c.roll, -m, m); c.yaw = BF.clamp(c.yaw, -m, m);
+        if (A.ctlLag) {
+          const pc = this.prevCtl || (this.prevCtl = { pitch: 0, roll: 0, yaw: 0 }), k = 1 - Math.exp(-dt / A.ctlLag);
+          for (const key of ['pitch', 'roll', 'yaw']) { pc[key] += (c[key] - pc[key]) * k; c[key] = pc[key]; }
+        }
+      } else if (this.prevCtl) { this.prevCtl.pitch = c.pitch; this.prevCtl.roll = c.roll; this.prevCtl.yaw = c.yaw; }
 
       // Speed discipline: ride 313 in turn fights
       const s = j.speed, turning = angleOff > 20 * BF.DEG || mode === 'evade';
@@ -195,6 +234,7 @@ window.BF = window.BF || {};
       if (this.prevSpeed != null) this.dvF = BF.damp(this.dvF || 0, (s - this.prevSpeed) / Math.max(dt, 1e-3), 8, dt);
       this.prevSpeed = s;
       if (mode === 'pullup') { c.throttleUp = 1; if (s < 300) c.boost = 1; }
+      else if (A.aggressive && mode === 'attack' && dist > 1200 && angleOff < 35 * BF.DEG) { c.throttleUp = 1; if (j.boostTank > 1) c.boost = 1; } // very hard: burner in to close
       else if (this.overT > 0) c.brake = 0.8;
       else if (this.lapsing) { /* not managing speed right now */ }
       else if ((turning || (A.bfm && mode === 'attack' && dist < 1600)) && A.speedMode === 'pd') {
@@ -216,7 +256,7 @@ window.BF = window.BF || {};
       // One weapon at a time, like the player: guns up close, heat-seekers at range.
       if (tgt && mode === 'attack') {
         const W = sim.cfg.weapons;
-        const gunsSolution = angleOff < A.fireCone * BF.DEG && dist < 900;
+        const gunsSolution = angleOff < A.fireCone * BF.DEG && dist < (A.aggressive ? 1000 : 900);
         // Keep heat-seekers up while hunting; swap to guns only for a close, clean shot.
         const closeGuns = dist < 750 && angleOff < 12 * BF.DEG;
         const lockInProgress = j.weapon === 'missile' && j.lock.targetId != null;
@@ -232,9 +272,72 @@ window.BF = window.BF || {};
         }
         if (j.weapon === 'missile' && j.lock.locked && dist < W.missileLockRange * 0.95) {
           this.missileDelay += dt;
-          if (this.missileDelay > 0.4 + sim.rand() * 0.6 && !j.prevFire) { c.fire = true; this.missileDelay = 0; }
+          const wait = A.aggressive ? 0.12 + sim.rand() * 0.2 : 0.4 + sim.rand() * 0.6;
+          if (this.missileDelay > wait && !j.prevFire) { c.fire = true; this.missileDelay = 0; }
         } else this.missileDelay = 0;
       }
+    }
+
+    // Target-practice pilot: wanders between waypoints at a lazy cruise. When someone is on
+    // its tail it just starts a wide, gentle turn one way and holds it. Bank is capped at
+    // 35 deg and the pull is light, so it can't out-turn anybody. Ground and boundary
+    // avoidance still apply (so it doesn't fly into hills).
+    updatePassive(dt, c) {
+      const j = this.jet, sim = this.sim, fwd = BF.forwardOf(j.quat, new V3());
+      const right = BF.rightOf(j.quat, new V3()), up = BF.upOf(j.quat, new V3());
+      const half = sim.cfg.world.size / 2;
+      // waypoints
+      this.wpT = (this.wpT ?? 0) - dt;
+      if (!this.wp || this.wpT <= 0 || Math.hypot(this.wp.x - j.pos.x, this.wp.z - j.pos.z) < 600) {
+        this.wp = new V3((sim.rand() - 0.5) * half * 1.3, 600 + sim.rand() * 600, (sim.rand() - 0.5) * half * 1.3);
+        this.wpT = 25 + sim.rand() * 15;
+      }
+      desired.subVectors(this.wp, j.pos); desired.y = BF.clamp(desired.y / Math.max(400, Math.hypot(desired.x, desired.z)), -0.2, 0.2) * Math.hypot(desired.x, desired.z); desired.normalize();
+      // chased? (an enemy within 1.5 km in our rear hemisphere)
+      let chased = false;
+      for (const o of sim.jets) {
+        if (!o.alive || o.team === j.team) continue;
+        tmp.subVectors(o.pos, j.pos);
+        if (tmp.length() < 1500 && tmp.normalize().dot(fwd) < -0.3) { chased = true; break; }
+      }
+      if (chased) {
+        if (!this.wasChased) this.turnDir = sim.rand() < 0.5 ? -1 : 1;
+        desired.copy(fwd).addScaledVector(right, 0.6 * this.turnDir); desired.y = 0; desired.normalize();
+        desired.y = BF.clamp((800 - j.pos.y) / 2000, -0.15, 0.15); desired.normalize();
+      }
+      this.wasChased = chased;
+      // Near the edge of the combat area it turns back properly (dying to the boundary
+      // would just be silly); everywhere else the turns stay wide.
+      if (j.nearBoundary) {
+        desired.set(-j.pos.x, 0, -j.pos.z).normalize(); desired.y = BF.clamp((800 - j.pos.y) / 1500, -0.2, 0.2); desired.normalize();
+        this.steer(c, desired, false); if (j.speed < 280) c.throttleUp = 1;
+        return;
+      }
+      // terrain / rooftops ahead: normal steering, pull up hard
+      let clearAhead = Infinity;
+      for (const lt of [0.8, 1.6, 2.6]) {
+        tmp.copy(j.pos).addScaledVector(j.vel, lt);
+        clearAhead = Math.min(clearAhead, tmp.y - sim.terrain.obstacleHeight(tmp.x, tmp.z, 20));
+      }
+      if (j.altitude < 160 || clearAhead < 140 || (fwd.y < -0.3 && j.altitude < 450)) {
+        desired.set(fwd.x, 0, fwd.z).normalize(); desired.y = 0.8; desired.normalize();
+        this.steer(c, desired, true); c.throttleUp = 1;
+        return;
+      }
+      // Gentle steering: aim at most 25 deg off the nose (a lazy target for the normal
+      // steering), then cap the pull and the bank so the turn stays wide
+      const off = fwd.angleTo(desired), maxOff = 25 * BF.DEG;
+      if (off > maxOff) { tmp.crossVectors(fwd, desired).normalize(); desired.copy(fwd).applyAxisAngle(tmp, maxOff); }
+      this.steer(c, desired, false);
+      c.pitch = BF.clamp(c.pitch, -0.2, 0.3);
+      if (fwd.y > desired.y + 0.04) c.pitch = Math.min(c.pitch, 0.04); // don't climb away in the banked turn
+      c.yaw *= 0.4;
+      const bank = Math.atan2(-right.y, up.y), cap = 35 * BF.DEG;
+      if (Math.abs(bank) > cap) c.roll = BF.clamp(-(bank - Math.sign(bank) * cap) * 2.5, -0.6, 0.6);
+      else c.roll = BF.clamp(c.roll, -0.5, 0.5);
+      // lazy cruise speed, never the 313 turn band
+      if (j.speed < 280) c.throttleUp = 1;
+      else if (j.speed > 340) c.brake = 0.3;
     }
 
     // Classic "roll the target onto the lift vector, then pull".
@@ -245,10 +348,11 @@ window.BF = window.BF || {};
       const lx = local.x, ly = local.y, lz = -local.z;
       const off = Math.acos(BF.clamp(lz, -1, 1));
       const rollErr = Math.atan2(lx, ly); // 0 = target straight "up" in canopy
-      if (off < 8 * BF.DEG && !urgent) {
+      const sharp = this.sim.cfg.ai.sharpTrack, fine = sharp ? 6 : 8, g = sharp ? 13 : 9;
+      if (off < fine * BF.DEG && !urgent) {
         // Fine tracking: small pitch/yaw, gently level wings
-        c.pitch = BF.clamp(ly * 9, -1, 1);
-        c.yaw = BF.clamp(lx * 9, -1, 1);
+        c.pitch = BF.clamp(ly * g, -1, 1);
+        c.yaw = BF.clamp(lx * g, -1, 1);
         c.roll = BF.clamp(rollErr * 0.3 * (ly > 0 ? 1 : 0), -1, 1);
       } else {
         c.roll = BF.clamp(rollErr * 2.2, -1, 1);

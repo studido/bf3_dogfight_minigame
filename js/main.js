@@ -79,6 +79,7 @@
     sim = new BF.Sim(cfg, seed);
     world = BF.buildWorld(scene, sim.terrain, cfg);
     effects = new BF.Effects(scene);
+    cockpit.prewarm(renderer, sim, camera); // no hitch on the first switch to cockpit view
     const o = { name: $('opt-name').value.trim() || 'Pilot', enemies: +$('opt-enemies').value, wing: +$('opt-wing').value, loadout: $('opt-loadout').value, aiMissiles: $('opt-aimsl').checked, aiEcm: $('opt-aiecm').value, camStyle: $('opt-camstyle').value, aiDiff: $('opt-aidiff').value, jetHealth: +$('opt-jethp').value };
     BF.applyAiDifficulty(cfg, o.aiDiff);
     cfg.jet.health = BF.clamp(o.jetHealth || 50, 10, 200);
@@ -246,7 +247,7 @@
 
   // Other players' callsigns are untrusted: escape before putting them in HTML
   const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const DIFF_LABEL = { veryEasy: 'very easy', easy: 'easy', medium: 'medium', hard: 'hard', extreme: 'extremely hard' };
+  const DIFF_LABEL = { passive: 'target-practice', veryEasy: 'very easy', easy: 'easy', medium: 'medium', hard: 'hard', extreme: 'extremely hard' };
   function lobbySettings() {
     return {
       enemies: +$('lob-enemies').value, aiDiff: $('lob-aidiff').value, jetHealth: +$('opt-jethp').value,
@@ -440,6 +441,7 @@
     sim = new BF.Sim(cfg, seed);
     world = BF.buildWorld(scene, sim.terrain, cfg);
     effects = new BF.Effects(scene);
+    cockpit.prewarm(renderer, sim, camera); // no hitch on the first switch to cockpit view
     ais = [];
     netSlots = [];
     const players = net.room ? net.room.players : [];
@@ -563,6 +565,7 @@
   function handleEvents() {
     for (const ev of sim.events) {
       effects.handle(ev, sim);
+      if (ev.visualOnly) continue; // another client's round, drawn here only for the impact effect
       audio.event(ev, me, camera.position, sim);
       if (ev.type === 'hit' || (ev.type === 'explode' && ev.missile)) {
         if (ev.by === me.id && ev.type === 'hit') hud.hitMarkerT = 0.12;
