@@ -1,2 +1,4 @@
 # machine-specific desktop shortcut (absolute paths)
 *.url
+node_modules/
+dist/

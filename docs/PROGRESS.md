@@ -782,6 +782,30 @@ desync tuning — friends' rule: don't).
   shortcut with the jet icon points at `LaunchGame.html` by absolute path; it's
   git-ignored. The README explains how to make one.
 
+## v0.3 desktop build (Electron)
+- three.js r128 is now bundled (`js/vendor/three.min.js`, the same file the CDN served), so
+  the game and the exe run fully offline.
+- `electron/main.js`: one window (1600x900, opens maximised) with the jet icon and no
+  menu. F11 toggles fullscreen (Esc stays pause). External links (credits) open in the
+  normal browser.
+  - Chromium flags: `ignore-gpu-blocklist` (WebGL on older laptop drivers) and
+    `autoplay-policy=no-user-gesture-required`.
+  - `backgroundThrottling: false`, so a match doesn't stall when the window loses focus.
+  - Context isolation and sandbox on, no Node in the page.
+- `package.json`: electron ^44.5.1, electron-builder ^26.15.3.
+  - `npm start` runs from source.
+  - `npm run build` makes `dist/Dogfight313.exe` (portable x64, asar, icon
+    `assets/icon/jet.ico`). The packaged files are the game files only (no test/docs/tools).
+  - It has to be built on Windows: the dev sandbox can't download Electron binaries or run
+    the Windows packaging tools.
+- `.gitignore`: `node_modules/`, `dist/`.
+- **Release workflow** (`.github/workflows/release.yml`): pushing a `v*` tag builds the
+  portable exe on `windows-latest` (Node 22, `npm ci`, electron-builder `--publish never`)
+  and attaches `Dogfight313.exe` to that tag's GitHub Release (softprops/action-gh-release,
+  auto-generated notes). A manual "Run workflow" builds without a release and keeps the
+  exe as a 14-day artifact. `electronLanguages: ["en-US"]` trims the Chromium locales.
+
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

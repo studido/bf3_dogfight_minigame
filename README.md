@@ -13,8 +13,8 @@ afterburner and M61 cannon sounds. A jet health slider sets match difficulty.
 
 ## Run it
 
-Double-click `LaunchGame.html` (Chrome or Edge recommended). Three.js loads from a CDN, so you need
-an internet connection the first time. No install, no server.
+Double-click `LaunchGame.html` (Chrome or Edge recommended). Everything is bundled, so it runs
+offline (multiplayer needs internet for the relay). No install, no server.
 
 The start screen shows the build number (e.g. `build 0.1.18`). If it doesn't match the latest
 update, close the tab and reopen `LaunchGame.html` (or press Ctrl+F5).
@@ -24,6 +24,31 @@ shortcut *Properties* → *Change Icon…* → `assets/icon/jet.ico`. (Windows a
 files themselves with the browser's icon; the browser tab shows the jet icon.)
 
 Click the screen to capture the mouse. Plug in a controller any time; it's picked up automatically.
+
+## Desktop app (single .exe)
+
+The game can be packaged as a portable Windows exe with [Electron](https://www.electronjs.org/)
+(its own window, jet icon, F11 for fullscreen). It's built on a Windows PC:
+
+1. Install [Node.js](https://nodejs.org/) (LTS) once.
+2. In this folder, open a terminal (right-click the folder → *Open in Terminal*) and run
+   `npm install` (first time only; downloads Electron, ~200 MB).
+3. Run `npm run build`. The exe appears as `dist/Dogfight313.exe` (~120-150 MB).
+
+**Releases:** pushing a version tag builds the exe on GitHub and attaches it to a release
+(`.github/workflows/release.yml`):
+
+```
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+The exe then appears under the repo's *Releases*. *Actions → Release exe → Run workflow*
+does a test build without a release (the exe is kept as a workflow artifact for 14 days).
+
+`npm start` runs the desktop app straight from the source without building. After any game
+update, run `npm run build` again. The exe isn't code-signed, so the first time on each PC
+Windows SmartScreen says *Windows protected your PC*. Click *More info* → *Run anyway*.
 
 ## Multiplayer
 

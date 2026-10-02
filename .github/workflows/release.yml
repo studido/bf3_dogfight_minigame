@@ -1,0 +1,47 @@
+# Builds the Windows desktop exe (Electron) and attaches it to a GitHub Release.
+#
+#   Release:  git tag v0.3.0 && git push origin v0.3.0
+#             -> builds on a Windows runner, creates the "v0.3.0" release (if needed) and
+#                uploads dist/Dogfight313.exe to it.
+#   Test run: Actions tab -> "Release exe" -> Run workflow
+#             -> builds and keeps the exe as a downloadable workflow artifact (no release).
+name: Release exe
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the release and upload the exe
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build portable exe
+        run: npx electron-builder --win portable --publish never
+
+      - name: Keep the exe as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dogfight313-exe
+          path: dist/Dogfight313.exe
+          retention-days: 14
+
+      - name: Attach the exe to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Dogfight313.exe
+          generate_release_notes: true
