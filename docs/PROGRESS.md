@@ -771,6 +771,17 @@ desync tuning — friends' rule: don't).
   - The relay passes settings through untouched, so no server change is needed.
   - Damage values are unchanged, so 50 HP means about half as many hits to kill.
 
+## v0.3 housekeeping: LaunchGame.html and the jet icon
+- `index.html` is renamed `LaunchGame.html`. The game is opened from disk, not
+  web-hosted, so nothing depends on the old name. README, config comment and the dev
+  harnesses are updated.
+- Jet icon (`assets/icon/`): a top-down F/A-18 silhouette on a dark-blue tile with
+  afterburner glow and a HUD-green arc, drawn procedurally. Available as `jet.ico`
+  (16-256 px) and as PNGs, with `jet_64.png` used as the browser-tab favicon.
+- Windows always shows `.html` files with the browser's icon. A local `Dogfight 313.url`
+  shortcut with the jet icon points at `LaunchGame.html` by absolute path; it's
+  git-ignored. The README explains how to make one.
+
 ## Known gaps and next steps
 - AI still has about 2 mid-air collisions per 3 minutes in a 5-jet furball.
 1. First flight test by the community → tune the turn curve, brake/spring rates and camera lag

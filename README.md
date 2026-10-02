@@ -13,11 +13,15 @@ afterburner and M61 cannon sounds. A jet health slider sets match difficulty.
 
 ## Run it
 
-Double-click `index.html` (Chrome or Edge recommended). Three.js loads from a CDN, so you need
+Double-click `LaunchGame.html` (Chrome or Edge recommended). Three.js loads from a CDN, so you need
 an internet connection the first time. No install, no server.
 
 The start screen shows the build number (e.g. `build 0.1.18`). If it doesn't match the latest
-update, close the tab and reopen `index.html` (or press Ctrl+F5).
+update, close the tab and reopen `LaunchGame.html` (or press Ctrl+F5).
+
+Want a desktop icon? Right-click `LaunchGame.html` → *Show more options* → *Create shortcut*, then
+shortcut *Properties* → *Change Icon…* → `assets/icon/jet.ico`. (Windows always shows `.html`
+files themselves with the browser's icon; the browser tab shows the jet icon.)
 
 Click the screen to capture the mouse. Plug in a controller any time; it's picked up automatically.
 

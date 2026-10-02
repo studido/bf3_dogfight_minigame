@@ -2,7 +2,7 @@
 // and can export/import them as JSON. Speeds are in HUD units (km/h); the sim
 // converts to m/s internally.
 window.BF = window.BF || {};
-// Build number: shown on the start screen. index.html loads every script with ?v=<build> so the
+// Build number: shown on the start screen. LaunchGame.html loads every script with ?v=<build> so the
 // browser can't keep running stale cached files after an update (bump both together).
 BF.BUILD = '0.1.49';
 
